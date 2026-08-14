@@ -5,6 +5,9 @@ import dotenv from 'dotenv';
 import QRCode from 'qrcode';
 import yts from 'yt-search';
 import ytdl from 'ytdl-core';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -16,40 +19,62 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 
 if (!TELEGRAM_TOKEN) {
-  console.error('❌ FALTA TELEGRAM_TOKEN');
+  console.error('❌ FALTA TELEGRAM_TOKEN en variables de entorno');
   process.exit(1);
 }
 
+// =====================================================
+//  INICIALIZAR BOT Y CLIENTES
+// =====================================================
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // =====================================================
-//  🖼️ TUS IMÁGENES DE KAORI (URLS DIRECTAS DE IMGBB)
+//  🖼️ CARGAR IMÁGENES DESDE LA CARPETA LOCAL 'assets'
 // =====================================================
-const misImagenes = [
-  'https://i.ibb.co/F45TJJqH/IMG-4774.jpg',
-  'https://i.ibb.co/F4B8PMgt/IMG-4773.jpg',
-  'https://i.ibb.co/XfWQsvyV/IMG-4772.jpg',
-  'https://i.ibb.co/jvZTp0wk/IMG-4771.jpg',
-  'https://i.ibb.co/wZzSJskp/IMG-4770.jpg',
-  'https://i.ibb.co/ksKg5195/IMG-4684.jpg',
-  'https://i.ibb.co/Kxp9LBcg/IMG-4486.jpg',
-  'https://i.ibb.co/MkW7VxwG/IMG-4469.jpg',
-  'https://i.ibb.co/MDDP7wk0/IMG-4485.jpg',
-  'https://i.ibb.co/jkCh6SQW/IMG-4407.jpg',
-];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+const imagenesFolder = path.join(__dirname, 'assets');
+const misImagenes = [];
+
+try {
+  const files = fs.readdirSync(imagenesFolder);
+  // Filtrar solo archivos de imagen (jpg, jpeg, png, gif)
+  const imageFiles = files.filter(file =>
+    file.endsWith('.jpg') || file.endsWith('.jpeg') ||
+    file.endsWith('.png') || file.endsWith('.gif')
+  );
+  imageFiles.forEach(file => {
+    misImagenes.push(path.join(imagenesFolder, file));
+  });
+  console.log(`✅ ${misImagenes.length} imágenes cargadas desde la carpeta local 'assets'`);
+} catch (error) {
+  console.warn('⚠️ No se encontró la carpeta "assets", usando imágenes de respaldo.');
+  // Imágenes de respaldo (URLs de ImgBB por si falla la carpeta)
+  misImagenes.push('https://i.ibb.co/F45TJJqH/IMG-4774.jpg');
+  misImagenes.push('https://i.ibb.co/F4B8PMgt/IMG-4773.jpg');
+}
+
+// Función para obtener una imagen aleatoria
 const getRandomImage = () => {
   return misImagenes[Math.floor(Math.random() * misImagenes.length)];
 };
 
 // =====================================================
-//  FUNCIÓN PARA ENVIAR IMAGEN + TEXTO
+//  FUNCIÓN PARA ENVIAR IMAGEN + TEXTO (DESDE LOCAL O URL)
 // =====================================================
 async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
   try {
-    const imageUrl = getRandomImage();
-    await bot.sendPhoto(chatId, imageUrl, { caption, parse_mode: parseMode });
+    const imagePath = getRandomImage();
+    // Si es una URL (https://), la envía directamente
+    if (imagePath.startsWith('http')) {
+      await bot.sendPhoto(chatId, imagePath, { caption, parse_mode: parseMode });
+    } else {
+      // Si es un archivo local, usa createReadStream
+      const stream = fs.createReadStream(imagePath);
+      await bot.sendPhoto(chatId, stream, { caption, parse_mode: parseMode });
+    }
   } catch (error) {
     console.warn('⚠️ Error enviando imagen, enviando solo texto:', error.message);
     await bot.sendMessage(chatId, caption, { parse_mode: parseMode });
@@ -149,7 +174,7 @@ bot.onText(/\/test/, async (msg) => {
   report += `✅ TELEGRAM_TOKEN: ${TELEGRAM_TOKEN ? 'OK' : 'FALTA'}\n`;
   report += `✅ GROQ_API_KEY: ${GROQ_API_KEY ? 'OK' : 'FALTA'}\n`;
   report += `✅ WEATHER_API_KEY: ${WEATHER_API_KEY ? 'OK' : 'FALTA'}\n`;
-  report += `📦 Comandos cargados: 22`;
+  report += `🖼️ Imágenes cargadas: ${misImagenes.length}`;
   await sendSafePhoto(chatId, report);
 });
 
@@ -566,5 +591,6 @@ bot.on('polling_error', (error) => {
   console.warn(`⚠️ Error de polling: ${error.code} - ${error.message}`);
 });
 
-console.log('🌸 Bot de Kaori Miyazono corriendo con tus imágenes...');
+console.log('🌸 Bot de Kaori Miyazono corriendo con imágenes locales...');
+console.log(`🖼️ ${misImagenes.length} imágenes cargadas desde 'assets'`);
 console.log('🎻 Comandos: 22 disponibles');
