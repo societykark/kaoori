@@ -5,8 +5,6 @@ import dotenv from 'dotenv';
 import QRCode from 'qrcode';
 import yts from 'yt-search';
 import ytdl from 'ytdl-core';
-import { JSDOM } from 'jsdom';
-import { Buffer } from 'buffer';
 
 dotenv.config();
 
@@ -29,18 +27,15 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // =====================================================
-//  🖼️ TUS IMÁGENES DE KAORI (URLs DIRECTAS QUE SÍ JALAN)
-//  (Reemplázalas con las tuyas de ImgBB)
+//  🖼️ TUS IMÁGENES DE KAORI (URLs DIRECTAS DE IMGBB)
 // =====================================================
 const misImagenes = [
-  'https://i.ibb.co/DtfRjPx/kaori1.jpg',
-  'https://i.ibb.co/BLzHXj2/kaori2.jpg',
-  'https://i.ibb.co/3F2Kp7v/kaori3.jpg',
-  'https://i.ibb.co/HTTk9rJ/kaori4.jpg',
-  'https://i.ibb.co/fD7Z1Dv/kaori5.jpg',
-  'https://i.ibb.co/JmqcmP8/kaori6.jpg',
-  'https://i.ibb.co/S0T6QWp/kaori7.jpg',
-  'https://i.ibb.co/D8H4CjR/kaori8.jpg',
+  'https://i.ibb.co/Ps3kQZTM/IMG-4773.jpg',
+  'https://i.ibb.co/bMZBCtCX/IMG-4772.jpg',
+  'https://i.ibb.co/xppZrm6/IMG-4771.jpg',
+  'https://i.ibb.co/hxSFmKTL/IMG-4770.jpg',
+  'https://i.ibb.co/Gv7jwqVt/IMG-4684.jpg',
+  'https://i.ibb.co/7drPpZ64/IMG-4407.jpg',
 ];
 
 const getRandomImage = () => {
@@ -58,13 +53,6 @@ async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
     await bot.sendMessage(chatId, caption, { parse_mode: parseMode });
   }
 }
-
-// =====================================================
-//  FUNCIÓN PARA GENERAR IMAGEN CON POLLINATIONS (GRATIS)
-// =====================================================
-const getPollinationsImage = (prompt) => {
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ', anime style, high quality')}`;
-};
 
 // =====================================================
 //  COMANDO /start (BIENVENIDA COMPLETA)
@@ -197,7 +185,7 @@ bot.onText(/\/imagen (.+)/, async (msg, match) => {
   const prompt = match[1];
   await bot.sendChatAction(chatId, 'upload_photo');
   try {
-    const imageUrl = getPollinationsImage(prompt);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ', anime style, high quality')}`;
     await bot.sendPhoto(chatId, imageUrl, { caption: `🖼️ *"${prompt}"*` });
   } catch (err) {
     await sendSafePhoto(chatId, `❌ *Error al generar imagen:* ${err.message}`);
@@ -253,10 +241,9 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /music (DESCARGA AUDIO DE YOUTUBE, ALIAS DE /video)
+//  COMANDO /music (ALIAS DE /video)
 // =====================================================
 bot.onText(/\/music (.+)/, (msg, match) => {
-  // Reutiliza la lógica de /video
   bot.emit('text', { ...msg, text: `/video ${match[1]}` });
 });
 
@@ -275,24 +262,10 @@ bot.onText(/\/qr (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /leerqr (LEE QR DESDE UNA FOTO)
+//  COMANDO /leerqr (EN DESARROLLO)
 // =====================================================
 bot.onText(/\/leerqr/, async (msg) => {
-  const chatId = msg.chat.id;
-  const reply = msg.reply_to_message;
-  if (!reply || !reply.photo) {
-    return await sendSafePhoto(chatId, '❌ *Responde a una foto con /leerqr*');
-  }
-  try {
-    const fileId = reply.photo[reply.photo.length - 1].file_id;
-    const fileLink = await bot.getFileLink(fileId);
-    const response = await axios.get(fileLink, { responseType: 'arraybuffer' });
-    // Aquí iría la lógica de lectura de QR (usando una librería como jimp o qrcode-reader)
-    // Por ahora damos un mensaje simulado
-    await sendSafePhoto(chatId, '📲 *QR leído:* (funcionalidad en desarrollo)');
-  } catch (err) {
-    await sendSafePhoto(chatId, `❌ *Error al leer QR:* ${err.message}`);
-  }
+  await sendSafePhoto(msg.chat.id, '🔧 *Leer QR está en desarrollo.* Pronto estará disponible.');
 });
 
 // =====================================================
@@ -316,15 +289,14 @@ bot.onText(/\/dolar/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /bitcoin (PRECIO DE BITCOIN)
+//  COMANDO /bitcoin
 // =====================================================
 bot.onText(/\/bitcoin/, async (msg) => {
   const chatId = msg.chat.id;
   await bot.sendChatAction(chatId, 'typing');
   try {
     const { data } = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-    const price = data.bitcoin.usd;
-    await sendSafePhoto(chatId, `₿ *Bitcoin:* $${price} USD`);
+    await sendSafePhoto(chatId, `₿ *Bitcoin:* $${data.bitcoin.usd} USD`);
   } catch (err) {
     await sendSafePhoto(chatId, `❌ *Error:* ${err.message}`);
   }
@@ -360,8 +332,7 @@ bot.onText(/\/resumen (.+)/, async (msg, match) => {
   await bot.sendChatAction(chatId, 'typing');
   try {
     const { data } = await axios.get(url);
-    const dom = new JSDOM(data);
-    const text = dom.window.document.body.textContent.replace(/\s+/g, ' ').slice(0, 2000);
+    const text = data.slice(0, 2000).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
     if (groq) {
       const completion = await groq.chat.completions.create({
         model: 'llama-3.1-8b-instant',
@@ -378,7 +349,7 @@ bot.onText(/\/resumen (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /trivia (PREGUNTA DE CULTURA GENERAL)
+//  COMANDO /trivia
 // =====================================================
 bot.onText(/\/trivia/, async (msg) => {
   const chatId = msg.chat.id;
@@ -391,15 +362,13 @@ bot.onText(/\/trivia/, async (msg) => {
     options.forEach((opt, i) => text += `${i+1}. ${opt}\n`);
     text += `\nResponde con el número de la opción.`;
     await bot.sendMessage(chatId, text);
-    // Guardamos la respuesta correcta para validar después (en un Map)
-    // Por simplicidad, no lo implementamos aquí.
   } catch (err) {
     await sendSafePhoto(chatId, `❌ *Error:* ${err.message}`);
   }
 });
 
 // =====================================================
-//  COMANDO /adivina (JUEGO DE ADIVINAR)
+//  COMANDO /adivina
 // =====================================================
 const adivinaJuego = new Map();
 bot.onText(/\/adivina (.+)/, async (msg, match) => {
@@ -428,23 +397,33 @@ bot.onText(/\/adivina/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /horoscopo
+//  COMANDO /horoscopo (CON GROQ, SIN API EXTERNA)
 // =====================================================
-bot.onText(/\/horoscopo (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const signo = match[1].toLowerCase();
-  const signos = ['aries', 'tauro', 'geminis', 'cancer', 'leo', 'virgo', 'libra', 'escorpio', 'sagitario', 'capricornio', 'acuario', 'piscis'];
-  if (!signos.includes(signo)) {
-    return await sendSafePhoto(chatId, '❌ *Signo no válido.*\nUsa: aries, tauro, geminis, cancer, leo, virgo, libra, escorpio, sagitario, capricornio, acuario, piscis');
-  }
-  await bot.sendChatAction(chatId, 'typing');
-  try {
-    const { data } = await axios.get(`https://horoscope-api.com/api/horoscope/today/${signo}`);
-    await sendSafePhoto(chatId, `♈ *${signo.charAt(0).toUpperCase() + signo.slice(1)}:*\n${data.horoscope}`);
-  } catch {
-    await sendSafePhoto(chatId, `❌ *Error al obtener horóscopo.*`);
-  }
-});
+if (groq) {
+  bot.onText(/\/horoscopo (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const signo = match[1].toLowerCase();
+    const signosValidos = ['aries', 'tauro', 'geminis', 'cancer', 'leo', 'virgo', 'libra', 'escorpio', 'sagitario', 'capricornio', 'acuario', 'piscis'];
+    if (!signosValidos.includes(signo)) {
+      return await sendSafePhoto(chatId, '❌ *Signo no válido.*\nUsa: aries, tauro, geminis, cancer, leo, virgo, libra, escorpio, sagitario, capricornio, acuario, piscis');
+    }
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: `Genera un horóscopo para el signo ${signo} para hoy, en español, con un tono positivo y amigable.` }],
+        max_tokens: 200,
+      });
+      await sendSafePhoto(chatId, `♈ *Horóscopo para ${signo.charAt(0).toUpperCase() + signo.slice(1)}:*\n${completion.choices[0].message.content}`);
+    } catch (err) {
+      await sendSafePhoto(chatId, `❌ *Error:* ${err.message}`);
+    }
+  });
+} else {
+  bot.onText(/\/horoscopo/, async (msg) => {
+    await sendSafePhoto(msg.chat.id, '❌ *GROQ no configurado.*');
+  });
+}
 
 // =====================================================
 //  COMANDO /noticias
@@ -489,7 +468,7 @@ if (groq) {
 }
 
 // =====================================================
-//  COMANDO /chiste (CON GROQ O AXIOS)
+//  COMANDO /chiste
 // =====================================================
 bot.onText(/\/chiste/, async (msg) => {
   const chatId = msg.chat.id;
@@ -528,7 +507,7 @@ if (groq) {
 }
 
 // =====================================================
-//  COMANDO /recordatorio (SIMPLE EN MEMORIA)
+//  COMANDO /recordatorio
 // =====================================================
 const recordatorios = new Map();
 bot.onText(/\/recordatorio (.+)/, async (msg, match) => {
@@ -585,5 +564,5 @@ bot.on('polling_error', (error) => {
   console.warn(`⚠️ Error de polling: ${error.code} - ${error.message}`);
 });
 
-console.log('🌸 Bot de Kaori Miyazono corriendo con todos los comandos...');
+console.log('🌸 Bot de Kaori Miyazono corriendo con todas las imágenes...');
 console.log('🎻 Comandos: 22 disponibles');
