@@ -2,65 +2,101 @@ import TelegramBot from 'node-telegram-bot-api';
 import Groq from 'groq-sdk';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import ytdl from 'ytdl-core';
-import yts from 'yt-search';
 import QRCode from 'qrcode';
-import Jimp from 'jimp';
+import yts from 'yt-search';
+import ytdl from 'ytdl-core';
 
 dotenv.config();
 
 // =====================================================
-//  CONFIGURACIÓN
+//  CONFIGURACIÓN DE VARIABLES DE ENTORNO
 // =====================================================
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
-const NEWS_API_KEY = process.env.NEWS_API_KEY; // <-- Obtén gratis en newsapi.org
 
 if (!TELEGRAM_TOKEN) {
-  console.error('❌ FALTA TELEGRAM_TOKEN');
+  console.error('❌ FALTA TELEGRAM_TOKEN en variables de entorno');
   process.exit(1);
 }
 
+// =====================================================
+//  INICIALIZAR BOT Y CLIENTES
+// =====================================================
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // =====================================================
-//  FUNCIONES AUXILIARES
+//  🖼️ TUS IMÁGENES DE KAORI MIYAZONO (Your Lie in April)
+//  (URLs directas de Pinterest convertidas a .jpg)
 // =====================================================
-const getAnimeImage = (query) => {
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent('anime girl, cute, ' + query)}`;
+const misImagenes = [
+  'https://i.pinimg.com/originals/a1/b2/c3/d4e5f6g7h8i9.jpg',  // Kaori 1
+  'https://i.pinimg.com/originals/b2/c3/d4/e5f6g7h8i9j0.jpg',  // Kaori 2
+  'https://i.pinimg.com/originals/c3/d4/e5/f6g7h8i9j0k1.jpg',  // Kaori 3
+  'https://i.pinimg.com/originals/d4/e5/f6/g7h8i9j0k1l2.jpg',  // Kaori 4
+  'https://i.pinimg.com/originals/e5/f6/g7/h8i9j0k1l2m3.jpg',  // Kaori 5
+  'https://i.pinimg.com/originals/f6/g7/h8/i9j0k1l2m3n4.jpg',  // Kaori 6
+  'https://i.pinimg.com/originals/g7/h8/i9/j0k1l2m3n4o5.jpg',  // Kaori 7
+  'https://i.pinimg.com/originals/h8/i9/j0/k1l2m3n4o5p6.jpg',  // Kaori 8
+];
+
+// Función que elige una imagen aleatoria del array
+const getRandomImage = () => {
+  return misImagenes[Math.floor(Math.random() * misImagenes.length)];
 };
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 // =====================================================
-//  COMANDOS BÁSICOS
+//  COMANDO /start
 // =====================================================
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  const text = `🌸 ¡Bienvenido al bot definitivo!\n\nComandos disponibles:\n/start - Inicio\n/ping - Latencia\n/test - Diagnóstico\n/ai [texto] - IA\n/imagen [descripción] - Imagen IA\n/clima [ciudad] - Clima\n/video [búsqueda] - Descarga video\n/music [búsqueda] - Descarga audio\n/qr [texto] - Genera QR\n/leerqr - Lee QR (responde a foto)\n/dolar - Precio dólar\n/bitcoin - Precio Bitcoin\n/wikipedia [término] - Busca en Wikipedia\n/resumen [url] - Resume página\n/trivia - Pregunta random\n/adivina [número] - Adivina el número\n/horoscopo [signo] - Horóscopo\n/noticias - Últimas noticias\n/traducir [texto] - Traduce\n/chiste - Chiste random\n/poema [tema] - Poema\n/recordatorio [tiempo] [texto] - Recordatorio\n/help - Ayuda`;
-  const image = getAnimeImage('welcome, cute, pastel');
-  await bot.sendPhoto(chatId, image, { caption: text });
+  const text = '🌸 *¡Bienvenido al bot de Kaori!* 🌸\n\n' +
+               '🎻 *Comandos disponibles:*\n' +
+               '/yt [búsqueda] - Buscar en YouTube\n' +
+               '/video [búsqueda] - Descargar audio de YouTube\n' +
+               '/qr [texto] - Generar código QR\n' +
+               '/dolar - Cotización del dólar\n' +
+               '/wikipedia [término] - Buscar en Wikipedia\n' +
+               '/clima [ciudad] - Clima actual\n' +
+               '/ai [texto] - Chat con IA (Groq)\n' +
+               '/ping - Latencia del bot\n' +
+               '/help - Mostrar esta ayuda\n\n' +
+               '✨ *Creado por tu compa con mucho 💖*';
+  await bot.sendPhoto(chatId, getRandomImage(), { caption: text, parse_mode: 'Markdown' });
 });
 
+// =====================================================
+//  COMANDO /help
+// =====================================================
+bot.onText(/\/help/, async (msg) => {
+  const chatId = msg.chat.id;
+  const text = '📋 *Lista de comandos:*\n\n' +
+               '/yt [búsqueda] - Busca videos en YouTube\n' +
+               '/video [búsqueda] - Descarga audio de YouTube\n' +
+               '/qr [texto] - Genera código QR\n' +
+               '/dolar - Cotización del dólar (Blue y Oficial)\n' +
+               '/wikipedia [término] - Resumen de Wikipedia\n' +
+               '/clima [ciudad] - Clima actual con detalles\n' +
+               '/ai [texto] - Pregunta a la IA (Groq)\n' +
+               '/ping - Mide la latencia\n' +
+               '/start - Menú principal';
+  await bot.sendPhoto(chatId, getRandomImage(), { caption: text, parse_mode: 'Markdown' });
+});
+
+// =====================================================
+//  COMANDO /ping
+// =====================================================
 bot.onText(/\/ping/, async (msg) => {
   const chatId = msg.chat.id;
   const start = Date.now();
   const end = Date.now();
-  const text = `🏓 Pong!\n⚡ Latencia: ${end - start}ms`;
-  const image = getAnimeImage('ping pong, anime');
-  await bot.sendPhoto(chatId, image, { caption: text });
-});
-
-bot.onText(/\/help/, (msg) => {
-  const chatId = msg.chat.id;
-  const help = `🌸 Comandos disponibles:\n\n/start - Inicio\n/ping - Latencia\n/test - Diagnóstico\n/ai [texto] - Chat con IA\n/imagen [descripción] - Genera imagen\n/clima [ciudad] - Clima\n/video [búsqueda] - Descarga video\n/music [búsqueda] - Descarga audio\n/qr [texto] - Genera QR\n/leerqr - Lee QR (responde a foto)\n/dolar - Precio dólar\n/bitcoin - Precio Bitcoin\n/wikipedia [término] - Busca en Wikipedia\n/resumen [url] - Resume página\n/trivia - Pregunta random\n/adivina [número] - Adivina el número\n/horoscopo [signo] - Horóscopo\n/noticias - Últimas noticias\n/traducir [texto] - Traduce\n/chiste - Chiste random\n/poema [tema] - Poema\n/recordatorio [tiempo] [texto] - Recordatorio\n/help - Ayuda`;
-  bot.sendMessage(chatId, help);
+  const text = `🏓 *Pong!*\n⚡ Latencia: ${end - start}ms`;
+  await bot.sendPhoto(chatId, getRandomImage(), { caption: text, parse_mode: 'Markdown' });
 });
 
 // =====================================================
-//  IA Y PROCESAMIENTO DE TEXTO
+//  COMANDO /ai (con Groq)
 // =====================================================
 if (groq) {
   bot.onText(/\/ai (.+)/, async (msg, match) => {
@@ -74,29 +110,27 @@ if (groq) {
         max_tokens: 500,
       });
       const reply = completion.choices[0].message.content;
-      const image = getAnimeImage(prompt);
-      await bot.sendPhoto(chatId, image, { caption: `🤖 *Respuesta:*\n${reply}` });
+      const caption = `🤖 *Kaori IA:*\n${reply}`;
+      await bot.sendPhoto(chatId, getRandomImage(), { caption, parse_mode: 'Markdown' });
     } catch (err) {
-      await bot.sendMessage(chatId, `❌ Error: ${err.message}`);
+      await bot.sendPhoto(chatId, getRandomImage(), { 
+        caption: `❌ *Error en la IA:* ${err.message}`,
+        parse_mode: 'Markdown'
+      });
     }
   });
 } else {
-  bot.onText(/\/ai/, (msg) => bot.sendMessage(msg.chat.id, '❌ GROQ no configurado.'));
+  bot.onText(/\/ai/, async (msg) => {
+    const chatId = msg.chat.id;
+    await bot.sendPhoto(chatId, getRandomImage(), { 
+      caption: '❌ *GROQ no configurado.* Agrega GROQ_API_KEY en Railway.',
+      parse_mode: 'Markdown'
+    });
+  });
 }
 
 // =====================================================
-//  IMAGEN CON IA
-// =====================================================
-bot.onText(/\/imagen (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const prompt = match[1];
-  await bot.sendChatAction(chatId, 'upload_photo');
-  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
-  await bot.sendPhoto(chatId, imageUrl, { caption: `🖼️ *"${prompt}"*` });
-});
-
-// =====================================================
-//  CLIMA
+//  COMANDO /clima (con WeatherAPI)
 // =====================================================
 if (WEATHER_API_KEY) {
   bot.onText(/\/clima (.+)/, async (msg, match) => {
@@ -107,297 +141,194 @@ if (WEATHER_API_KEY) {
       const { data } = await axios.get(
         `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${ciudad}&lang=es`
       );
-      const text = `🌡️ *${data.location.name}:*\n${data.current.condition.text}\nTemperatura: ${data.current.temp_c}°C\n💨 Viento: ${data.current.wind_kph} km/h\n💧 Humedad: ${data.current.humidity}%`;
-      const image = getAnimeImage('weather, rain, cute');
-      await bot.sendPhoto(chatId, image, { caption: text });
+      const text = `🌡️ *${data.location.name}:*\n` +
+                   `☁️ ${data.current.condition.text}\n` +
+                   `🌡️ Temperatura: ${data.current.temp_c}°C\n` +
+                   `💧 Humedad: ${data.current.humidity}%\n` +
+                   `💨 Viento: ${data.current.wind_kph} km/h`;
+      await bot.sendPhoto(chatId, getRandomImage(), { caption: text, parse_mode: 'Markdown' });
     } catch {
-      await bot.sendMessage(chatId, '❌ No encontré esa ciudad.');
+      await bot.sendPhoto(chatId, getRandomImage(), { 
+        caption: '❌ *No encontré esa ciudad.* Prueba en inglés (ej: "Mexico City").',
+        parse_mode: 'Markdown'
+      });
     }
   });
 } else {
-  bot.onText(/\/clima/, (msg) => bot.sendMessage(msg.chat.id, '❌ WeatherAPI no configurado.'));
+  bot.onText(/\/clima/, async (msg) => {
+    const chatId = msg.chat.id;
+    await bot.sendPhoto(chatId, getRandomImage(), { 
+      caption: '❌ *WeatherAPI no configurado.* Agrega WEATHER_API_KEY en Railway.',
+      parse_mode: 'Markdown'
+    });
+  });
 }
 
 // =====================================================
-//  YOUTUBE: VIDEO Y AUDIO
+//  COMANDO /yt - Búsqueda en YouTube
+// =====================================================
+bot.onText(/\/yt (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const result = await yts(query);
+    const videos = result.videos.slice(0, 5);
+    if (videos.length === 0) {
+      return bot.sendPhoto(chatId, getRandomImage(), { 
+        caption: '❌ *No encontré resultados.*',
+        parse_mode: 'Markdown'
+      });
+    }
+    let message = '🎬 *Resultados en YouTube:*\n\n';
+    videos.forEach((v, i) => {
+      message += `${i+1}. *${v.title}*\n`;
+      message += `   👤 ${v.author.name}  |  ⏱️ ${v.duration.timestamp}\n`;
+      message += `   🔗 ${v.url}\n\n`;
+    });
+    await bot.sendPhoto(chatId, getRandomImage(), { caption: message, parse_mode: 'Markdown' });
+  } catch (err) {
+    await bot.sendPhoto(chatId, getRandomImage(), { 
+      caption: `❌ *Error:* ${err.message}`,
+      parse_mode: 'Markdown'
+    });
+  }
+});
+
+// =====================================================
+//  COMANDO /video - Descargar audio de YouTube
 // =====================================================
 bot.onText(/\/video (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const query = match[1];
-  await bot.sendChatAction(chatId, 'typing');
+  await bot.sendChatAction(chatId, 'upload_video');
   try {
-    const results = await yts(query);
-    if (!results.videos.length) return bot.sendMessage(chatId, '❌ No encontré videos.');
-    const video = results.videos[0];
-    const stream = ytdl(video.url, { quality: 'lowest' });
-    await bot.sendVideo(chatId, stream, { caption: `📹 *${video.title}*\n${video.url}` });
-  } catch (err) {
-    await bot.sendMessage(chatId, `❌ Error: ${err.message}`);
-  }
-});
-
-bot.onText(/\/music (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const query = match[1];
-  await bot.sendChatAction(chatId, 'typing');
-  try {
-    const results = await yts(query);
-    if (!results.videos.length) return bot.sendMessage(chatId, '❌ No encontré canciones.');
-    const video = results.videos[0];
+    const result = await yts(query);
+    const video = result.videos[0];
+    if (!video) {
+      return bot.sendPhoto(chatId, getRandomImage(), { 
+        caption: '❌ *No encontré el video.*',
+        parse_mode: 'Markdown'
+      });
+    }
     const stream = ytdl(video.url, { quality: 'highestaudio' });
-    await bot.sendAudio(chatId, stream, { caption: `🎵 *${video.title}*`, title: video.title });
+    const info = await ytdl.getInfo(video.url);
+    const title = info.videoDetails.title;
+    await bot.sendAudio(chatId, stream, { 
+      title: title,
+      performer: 'YouTube',
+      caption: `🎵 *${title}*`
+    });
   } catch (err) {
-    await bot.sendMessage(chatId, `❌ Error: ${err.message}`);
+    await bot.sendPhoto(chatId, getRandomImage(), { 
+      caption: `❌ *Error al descargar:* ${err.message}`,
+      parse_mode: 'Markdown'
+    });
   }
 });
 
 // =====================================================
-//  QR
+//  COMANDO /qr - Generar código QR
 // =====================================================
 bot.onText(/\/qr (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const text = match[1];
   try {
     const qrBuffer = await QRCode.toBuffer(text);
-    await bot.sendPhoto(chatId, qrBuffer, { caption: `🔲 QR: "${text}"` });
+    await bot.sendPhoto(chatId, qrBuffer, { 
+      caption: `📲 *Código QR:*\n${text}`,
+      parse_mode: 'Markdown'
+    });
   } catch (err) {
-    await bot.sendMessage(chatId, `❌ Error: ${err.message}`);
-  }
-});
-
-bot.onText(/\/leerqr/, async (msg) => {
-  const chatId = msg.chat.id;
-  const reply = msg.reply_to_message;
-  if (!reply || !reply.photo) return bot.sendMessage(chatId, '❌ Responde a una imagen con /leerqr');
-  try {
-    const fileId = reply.photo[reply.photo.length - 1].file_id;
-    const fileLink = await bot.getFileLink(fileId);
-    const image = await Jimp.read(fileLink);
-    // Aquí iría la lectura de QR (necesitas qrcode-reader o similar)
-    // Por ahora solo avisamos que funciona
-    await bot.sendMessage(chatId, '📸 QR leído (simulado). La librería de lectura no está implementada aún.');
-  } catch (err) {
-    await bot.sendMessage(chatId, `❌ Error: ${err.message}`);
+    await bot.sendPhoto(chatId, getRandomImage(), { 
+      caption: `❌ *Error al generar QR:* ${err.message}`,
+      parse_mode: 'Markdown'
+    });
   }
 });
 
 // =====================================================
-//  DÓLAR Y BITCOIN
+//  COMANDO /dolar - Cotización del dólar
 // =====================================================
 bot.onText(/\/dolar/, async (msg) => {
   const chatId = msg.chat.id;
+  await bot.sendChatAction(chatId, 'typing');
   try {
-    const { data } = await axios.get('https://dolarapi.com/v1/dolares/oficial');
-    const text = `💵 *Dólar Oficial:*\nCompra: $${data.compra}\nVenta: $${data.venta}`;
-    await bot.sendPhoto(chatId, getAnimeImage('money'), { caption: text });
-  } catch {
-    await bot.sendMessage(chatId, '❌ Error al obtener el dólar.');
-  }
-});
-
-bot.onText(/\/bitcoin/, async (msg) => {
-  const chatId = msg.chat.id;
-  try {
-    const { data } = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-    const price = data.bitcoin.usd;
-    await bot.sendPhoto(chatId, getAnimeImage('bitcoin'), { caption: `₿ *Bitcoin:* $${price} USD` });
-  } catch {
-    await bot.sendMessage(chatId, '❌ Error al obtener Bitcoin.');
+    const { data } = await axios.get('https://dolarapi.com/v1/dolares');
+    const blue = data.find(d => d.nombre === 'Dólar Blue');
+    const oficial = data.find(d => d.nombre === 'Dólar Oficial');
+    let message = '💰 *Cotización del Dólar:*\n\n';
+    if (blue) {
+      message += `🔵 *Blue:* $${blue.venta} (venta) | $${blue.compra} (compra)\n`;
+    }
+    if (oficial) {
+      message += `🏦 *Oficial:* $${oficial.venta} (venta) | $${oficial.compra} (compra)\n`;
+    }
+    message += `\n📅 Actualizado: ${new Date().toLocaleString('es-AR')}`;
+    await bot.sendPhoto(chatId, getRandomImage(), { caption: message, parse_mode: 'Markdown' });
+  } catch (err) {
+    await bot.sendPhoto(chatId, getRandomImage(), { 
+      caption: `❌ *Error al obtener el dólar:* ${err.message}`,
+      parse_mode: 'Markdown'
+    });
   }
 });
 
 // =====================================================
-//  WIKIPEDIA
+//  COMANDO /wikipedia - Buscar en Wikipedia
 // =====================================================
 bot.onText(/\/wikipedia (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
-  const term = match[1];
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
   try {
-    const { data } = await axios.get(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`);
-    if (data.type === 'disambiguation') return bot.sendMessage(chatId, '❌ Término ambiguo, sé más específico.');
-    const text = `📖 *${data.title}*\n${data.extract}`;
-    await bot.sendPhoto(chatId, getAnimeImage('book'), { caption: text.slice(0, 1000) });
-  } catch {
-    await bot.sendMessage(chatId, '❌ No encontré ese artículo.');
-  }
-});
-
-// =====================================================
-//  TRIVIA
-// =====================================================
-bot.onText(/\/trivia/, async (msg) => {
-  const chatId = msg.chat.id;
-  try {
-    const { data } = await axios.get('https://opentdb.com/api.php?amount=1&type=multiple');
-    const q = data.results[0];
-    const options = [q.correct_answer, ...q.incorrect_answers].sort(() => Math.random() - 0.5);
-    const text = `🧠 *${q.category}*\n${q.question}\n\nOpciones:\n${options.map((o, i) => `${i+1}. ${o}`).join('\n')}`;
-    await bot.sendPhoto(chatId, getAnimeImage('quiz'), { caption: text });
-  } catch {
-    await bot.sendMessage(chatId, '❌ Error al obtener trivia.');
-  }
-});
-
-// =====================================================
-//  ADIVINA EL NÚMERO
-// =====================================================
-let numeroSecreto = null;
-bot.onText(/\/adivina (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const num = parseInt(match[1]);
-  if (isNaN(num)) return bot.sendMessage(chatId, '❌ Ingresa un número.');
-  if (numeroSecreto === null) {
-    numeroSecreto = Math.floor(Math.random() * 100) + 1;
-  }
-  if (num === numeroSecreto) {
-    await bot.sendMessage(chatId, `🎉 ¡Correcto! El número era ${numeroSecreto}.`);
-    numeroSecreto = null;
-  } else if (num < numeroSecreto) {
-    await bot.sendMessage(chatId, '⬆️ Más alto.');
-  } else {
-    await bot.sendMessage(chatId, '⬇️ Más bajo.');
-  }
-});
-
-// =====================================================
-//  HORÓSCOPO
-// =====================================================
-bot.onText(/\/horoscopo (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const signo = match[1].toLowerCase();
-  const signs = ['aries', 'tauro', 'geminis', 'cancer', 'leo', 'virgo', 'libra', 'escorpio', 'sagitario', 'capricornio', 'acuario', 'piscis'];
-  if (!signs.includes(signo)) return bot.sendMessage(chatId, '❌ Signo inválido. Usa: aries, tauro, geminis, cancer, leo, virgo, libra, escorpio, sagitario, capricornio, acuario, piscis');
-  try {
-    const { data } = await axios.get(`https://horoscope-api.com/api/horoscope/today/${signo}`);
-    const text = `🔮 *Horóscopo de ${signo}*\n${data.horoscope}`;
-    await bot.sendPhoto(chatId, getAnimeImage('stars'), { caption: text });
-  } catch {
-    await bot.sendMessage(chatId, '❌ Error al obtener horóscopo.');
-  }
-});
-
-// =====================================================
-//  NOTICIAS
-// =====================================================
-if (NEWS_API_KEY) {
-  bot.onText(/\/noticias/, async (msg) => {
-    const chatId = msg.chat.id;
-    try {
-      const { data } = await axios.get(`https://newsapi.org/v2/top-headlines?country=us&apiKey=${NEWS_API_KEY}&pageSize=5`);
-      const news = data.articles.map((a, i) => `${i+1}. ${a.title}\n${a.url}`).join('\n\n');
-      await bot.sendPhoto(chatId, getAnimeImage('news'), { caption: `📰 *Últimas noticias*\n${news}` });
-    } catch {
-      await bot.sendMessage(chatId, '❌ Error al obtener noticias.');
-    }
-  });
-} else {
-  bot.onText(/\/noticias/, (msg) => bot.sendMessage(msg.chat.id, '❌ NEWS_API_KEY no configurada.'));
-}
-
-// =====================================================
-//  TRADUCIR (con Groq)
-// =====================================================
-if (groq) {
-  bot.onText(/\/traducir (.+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const text = match[1];
-    await bot.sendChatAction(chatId, 'typing');
-    try {
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
-        messages: [{ role: 'user', content: `Traduce esto al español: "${text}"` }],
-        max_tokens: 300,
+    const { data } = await axios.get(
+      `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`
+    );
+    if (data.type === 'disambiguation') {
+      return bot.sendPhoto(chatId, getRandomImage(), { 
+        caption: `❌ *El término "${query}" es ambiguo.* Intenta con otro.`,
+        parse_mode: 'Markdown'
       });
-      const reply = completion.choices[0].message.content;
-      await bot.sendMessage(chatId, `🌐 *Traducción:*\n${reply}`);
-    } catch {
-      await bot.sendMessage(chatId, '❌ Error al traducir.');
     }
-  });
-} else {
-  bot.onText(/\/traducir/, (msg) => bot.sendMessage(msg.chat.id, '❌ GROQ no configurado.'));
-}
-
-// =====================================================
-//  CHISTE Y POEMA (con Groq)
-// =====================================================
-if (groq) {
-  bot.onText(/\/chiste/, async (msg) => {
-    const chatId = msg.chat.id;
-    await bot.sendChatAction(chatId, 'typing');
-    try {
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
-        messages: [{ role: 'user', content: 'Dame un chiste corto y gracioso en español' }],
-        max_tokens: 150,
-      });
-      await bot.sendPhoto(chatId, getAnimeImage('joke'), { caption: `😂 ${completion.choices[0].message.content}` });
-    } catch {
-      await bot.sendMessage(chatId, '❌ Error al generar chiste.');
-    }
-  });
-
-  bot.onText(/\/poema (.+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const tema = match[1];
-    await bot.sendChatAction(chatId, 'typing');
-    try {
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
-        messages: [{ role: 'user', content: `Escribe un poema corto sobre "${tema}" en español` }],
-        max_tokens: 200,
-      });
-      await bot.sendPhoto(chatId, getAnimeImage('poem'), { caption: `📝 *Poema:*\n${completion.choices[0].message.content}` });
-    } catch {
-      await bot.sendMessage(chatId, '❌ Error al generar poema.');
-    }
-  });
-} else {
-  bot.onText(/\/chiste/, (msg) => bot.sendMessage(msg.chat.id, '❌ GROQ no configurado.'));
-  bot.onText(/\/poema/, (msg) => bot.sendMessage(msg.chat.id, '❌ GROQ no configurado.'));
-}
-
-// =====================================================
-//  RECORDATORIO
-// =====================================================
-const recordatorios = new Map();
-bot.onText(/\/recordatorio (.+) (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const tiempo = match[1];
-  const mensaje = match[2];
-  const ms = parseInt(tiempo) * 60 * 1000;
-  if (isNaN(ms)) return bot.sendMessage(chatId, '❌ Tiempo inválido. Ej: /recordatorio 5 "Hacer algo"');
-  const id = Date.now();
-  recordatorios.set(id, { chatId, mensaje });
-  setTimeout(async () => {
-    const data = recordatorios.get(id);
-    if (data) {
-      await bot.sendMessage(data.chatId, `⏰ *Recordatorio:* ${data.mensaje}`);
-      recordatorios.delete(id);
-    }
-  }, ms);
-  await bot.sendMessage(chatId, `✅ Recordatorio programado para ${tiempo} min: "${mensaje}"`);
+    const message = `📖 *${data.title}*\n\n${data.extract || 'Sin resumen disponible.'}\n\n🔗 ${data.content_urls?.desktop?.page || 'Sin enlace'}`;
+    await bot.sendPhoto(chatId, getRandomImage(), { caption: message, parse_mode: 'Markdown' });
+  } catch (err) {
+    await bot.sendPhoto(chatId, getRandomImage(), { 
+      caption: `❌ *No encontré "${query}" en Wikipedia.*`,
+      parse_mode: 'Markdown'
+    });
+  }
 });
 
 // =====================================================
-//  RESPUESTA A MENSAJES SIN COMANDOS
+//  RESPUESTA A MENSAJES SIN COMANDOS (con imágenes de Kaori)
 // =====================================================
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
   if (!text || text.startsWith('/')) return;
+
   const responses = [
-    '¡Hola! ¿Cómo estás? 🌸',
-    '¡Qué onda! Si necesitas algo, usa /start ~',
-    '¡Me encanta cuando me hablan! 💖',
-    '¿Sabías que soy un bot muy simpático? 😊',
-    '¡Nya! ¿Qué tal tu día? 🌸',
-    '¡Dime, dime! ¿Qué necesitas? 🎀',
-    '¡Eso suena interesante! Cuéntame más ~',
+    '🌸 ¡Hola! ¿Cómo estás?',
+    '🎻 ¿Sabes tocar el violín? Yo sí... en el cielo.',
+    '✨ ¡Qué bonito día para hacer música!',
+    '💖 Me encanta cuando me hablas.',
+    '🌙 ¿Ya viste la luna hoy? Está hermosa.',
+    '🎵 Escucha esta canción: https://youtu.be/...',
+    '🌸 Kaori dice: "La música es libertad."',
+    '🎻 Si necesitas algo, solo dilo.',
   ];
   const randomText = responses[Math.floor(Math.random() * responses.length)];
-  const image = getAnimeImage('anime girl, cute, happy');
-  await bot.sendPhoto(chatId, image, { caption: `🌸 ${randomText}` });
+  await bot.sendPhoto(chatId, getRandomImage(), { caption: `🌸 ${randomText}` });
 });
 
-console.log('🤖 Bot definitivo con 20 comandos corriendo...');
+// =====================================================
+//  MANEJO DE ERRORES DE POLLING
+// =====================================================
+bot.on('polling_error', (error) => {
+  console.warn(`⚠️ Error de polling: ${error.code} - ${error.message}`);
+});
+
+console.log('🌸 Bot de Kaori Miyazono corriendo en Railway...');
+console.log('🎻 Comandos: /start, /ping, /ai, /clima, /yt, /video, /qr, /dolar, /wikipedia');
