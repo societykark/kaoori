@@ -45,7 +45,7 @@ if (groq) {
     await bot.sendChatAction(chatId, 'typing');
     try {
       const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-specdec',
+        model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 500,
       });
