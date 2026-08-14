@@ -27,29 +27,28 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // =====================================================
-//  🖼️ OBTENER IMAGEN DE WAIFU DESDE API (SIN DUPLICADOS)
+//  🖼️ TUS IMÁGENES DE KAORI (URLS DIRECTAS DE IMGBB)
 // =====================================================
-async function getWaifuImage() {
-  try {
-    const response = await axios.get('https://api.waifu.pics/sfw/waifu');
-    return response.data.url;
-  } catch (error) {
-    console.warn('⚠️ Error obteniendo waifu, usando imagen de respaldo:', error.message);
-    return 'https://i.waifu.pics/qUY7BBo.jpg';
-  }
-}
+const misImagenes = [
+  'https://i.ibb.co/F45TJJqH/IMG-4774.jpg',
+  'https://i.ibb.co/F4B8PMgt/IMG-4773.jpg',
+  'https://i.ibb.co/XfWQsvyV/IMG-4772.jpg',
+  'https://i.ibb.co/jvZTp0wk/IMG-4771.jpg',
+  'https://i.ibb.co/wZzSJskp/IMG-4770.jpg',
+  'https://i.ibb.co/ksKg5195/IMG-4684.jpg',
+  'https://i.ibb.co/Kxp9LBcg/IMG-4486.jpg',
+  'https://i.ibb.co/MkW7VxwG/IMG-4469.jpg',
+  'https://i.ibb.co/MDDP7wk0/IMG-4485.jpg',
+  'https://i.ibb.co/jkCh6SQW/IMG-4407.jpg',
+];
 
-// =====================================================
-//  FUNCIÓN ÚNICA PARA ENVIAR IMAGEN + TEXTO
-// =====================================================
-async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
-  try {
-    const imageUrl = await getWaifuImage();
-    await bot.sendPhoto(chatId, imageUrl, { caption, parse_mode: parseMode });
-  } catch (error) {
-    console.warn('⚠️ Error enviando imagen, enviando solo texto:', error.message);
-    await bot.sendMessage(chatId, caption, { parse_mode: parseMode });
-  }
+const getRandomImage = () => {
+  return misImagenes[Math.floor(Math.random() * misImagenes.length)];
+};
+
+async function getWaifuImage() {
+  // Devuelve una imagen aleatoria de tu lista
+  return getRandomImage();
 }
 
 // =====================================================
