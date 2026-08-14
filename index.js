@@ -5,9 +5,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// =====================================================
-//  LECTURA DE VARIABLES DE ENTORNO
-// =====================================================
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
@@ -17,26 +14,42 @@ if (!TELEGRAM_TOKEN) {
   process.exit(1);
 }
 
-// =====================================================
-//  INICIALIZAR BOT Y CLIENTES
-// =====================================================
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // =====================================================
-//  COMANDO /test (diagnóstico)
+// FUNCIÓN QUE GENERA UNA IMAGEN DE ANIME (GENERAL)
 // =====================================================
-bot.onText(/\/test/, async (msg) => {
+const getAnimeImage = (query) => {
+  // Genera una imagen usando Pollinations (gratis, sin clave)
+  // Puedes cambiar la URL para tener un estilo específico
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent('anime girl, ' + query)}`;
+};
+
+// =====================================================
+// COMANDO /start (CON IMAGEN Y TEXTO)
+// =====================================================
+bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  let report = '🔍 *DIAGNÓSTICO*\n\n';
-  report += `✅ TELEGRAM: ${TELEGRAM_TOKEN ? 'OK' : 'FALTA'}\n`;
-  report += `✅ GROQ (IA): ${GROQ_API_KEY ? 'OK' : 'FALTA'}\n`;
-  report += `✅ WEATHER: ${WEATHER_API_KEY ? 'OK' : 'FALTA'}\n`;
-  await bot.sendMessage(chatId, report, { parse_mode: 'Markdown' });
+  const text = '🌸 ¡Bienvenido al bot!\n\nComandos:\n/start - Inicio\n/ping - Latencia\n/ai [pregunta] - Chat con IA\n/imagen [descripción] - Genera imagen\n/clima [ciudad] - Clima';
+  const image = getAnimeImage('welcome, cute');
+  await bot.sendPhoto(chatId, image, { caption: text });
 });
 
 // =====================================================
-//  COMANDO /ai (con Groq, gratis y rápido)
+// COMANDO /ping (CON IMAGEN Y TEXTO)
+// =====================================================
+bot.onText(/\/ping/, async (msg) => {
+  const chatId = msg.chat.id;
+  const start = Date.now();
+  const end = Date.now();
+  const text = `🏓 Pong!\n⚡ Latencia: ${end - start}ms`;
+  const image = getAnimeImage('ping pong, anime');
+  await bot.sendPhoto(chatId, image, { caption: text });
+});
+
+// =====================================================
+// COMANDO /ai (CON IMAGEN + TEXTO)
 // =====================================================
 if (groq) {
   bot.onText(/\/ai (.+)/, async (msg, match) => {
@@ -50,19 +63,39 @@ if (groq) {
         max_tokens: 500,
       });
       const reply = completion.choices[0].message.content;
-      await bot.sendMessage(chatId, `🤖 *IA:*\n${reply}`, { parse_mode: 'Markdown' });
+      const image = getAnimeImage(prompt);
+      await bot.sendPhoto(chatId, image, { caption: `🤖 *Respuesta:*\n${reply}` });
     } catch (err) {
-      await bot.sendMessage(chatId, `❌ Error: ${err.message}`);
+      const image = getAnimeImage('error');
+      await bot.sendPhoto(chatId, image, { caption: `❌ Error: ${err.message}` });
     }
   });
 } else {
-  bot.onText(/\/ai/, (msg) => {
-    bot.sendMessage(msg.chat.id, '❌ GROQ no configurado. Agrega GROQ_API_KEY en Railway.');
+  bot.onText(/\/ai/, async (msg) => {
+    const chatId = msg.chat.id;
+    const image = getAnimeImage('error');
+    await bot.sendPhoto(chatId, image, { caption: '❌ GROQ no configurado.' });
   });
 }
 
 // =====================================================
-//  COMANDO /clima (con WeatherAPI)
+// COMANDO /imagen (GENERA IMAGEN CON IA)
+// =====================================================
+bot.onText(/\/imagen (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const prompt = match[1];
+  await bot.sendChatAction(chatId, 'upload_photo');
+  try {
+    const imageUrl = getAnimeImage(prompt);
+    await bot.sendPhoto(chatId, imageUrl, { caption: `🖼️ *"${prompt}"*` });
+  } catch (err) {
+    const image = getAnimeImage('error');
+    await bot.sendPhoto(chatId, image, { caption: `❌ Error al generar imagen: ${err.message}` });
+  }
+});
+
+// =====================================================
+// COMANDO /clima (CON IMAGEN + TEXTO)
 // =====================================================
 if (WEATHER_API_KEY) {
   bot.onText(/\/clima (.+)/, async (msg, match) => {
@@ -73,44 +106,49 @@ if (WEATHER_API_KEY) {
       const { data } = await axios.get(
         `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${ciudad}&lang=es`
       );
-      await bot.sendMessage(chatId,
-        `🌡️ *${data.location.name}:*\n${data.current.condition.text}\nTemperatura: ${data.current.temp_c}°C`,
-        { parse_mode: 'Markdown' }
-      );
+      const text = `🌡️ *${data.location.name}:*\n${data.current.condition.text}\nTemperatura: ${data.current.temp_c}°C`;
+      const image = getAnimeImage('weather, rain, cute');
+      await bot.sendPhoto(chatId, image, { caption: text });
     } catch {
-      await bot.sendMessage(chatId, '❌ No encontré esa ciudad. Prueba en inglés (ej: "Mexico City").');
+      const image = getAnimeImage('city');
+      await bot.sendPhoto(chatId, image, { caption: '❌ No encontré esa ciudad. Prueba en inglés (ej: "Mexico City").' });
     }
   });
 } else {
-  bot.onText(/\/clima/, (msg) => {
-    bot.sendMessage(msg.chat.id, '❌ WeatherAPI no configurado.');
+  bot.onText(/\/clima/, async (msg) => {
+    const chatId = msg.chat.id;
+    const image = getAnimeImage('error');
+    await bot.sendPhoto(chatId, image, { caption: '❌ WeatherAPI no configurado.' });
   });
 }
 
 // =====================================================
-//  COMANDOS BÁSICOS
+// RESPUESTA A MENSAJES SIN COMANDOS (TEXTO + IMAGEN)
 // =====================================================
-bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id,
-    `🤖 *Bot con Groq y WeatherAPI*\n\n` +
-    `/start - Inicio\n/ping - Latencia\n/test - Diagnóstico\n/ai [texto] - ChatGPT gratis\n/clima [ciudad] - Clima\n/help - Ayuda`,
-    { parse_mode: 'Markdown' }
-  );
-});
-
-bot.onText(/\/ping/, async (msg) => {
+bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
-  const start = Date.now();
-  await bot.sendMessage(chatId, '🏓 Pong...');
-  const end = Date.now();
-  await bot.sendMessage(chatId, `*Latencia:* ${end - start}ms`, { parse_mode: 'Markdown' });
+  const text = msg.text;
+  if (!text || text.startsWith('/')) return;
+
+  const responses = [
+    '¡Hola! ¿Cómo estás? 🌸',
+    '¡Qué onda! Si necesitas algo, usa /start ~',
+    '¡Me encanta cuando me hablan! 💖',
+    '¿Sabías que soy un bot muy simpático? 😊',
+    '¡Nya! ¿Qué tal tu día? 🌸',
+    '¡Dime, dime! ¿Qué necesitas? 🎀',
+    '¡Eso suena interesante! Cuéntame más ~',
+  ];
+  const randomText = responses[Math.floor(Math.random() * responses.length)];
+  const image = getAnimeImage('anime girl, cute, happy');
+  await bot.sendPhoto(chatId, image, { caption: `🌸 ${randomText}` });
 });
 
-bot.onText(/\/help/, (msg) => {
-  bot.sendMessage(msg.chat.id,
-    `📌 *Comandos:*\n/start - Inicio\n/ping - Latencia\n/test - Diagnóstico\n/ai [texto] - IA\n/clima [ciudad] - Clima`,
-    { parse_mode: 'Markdown' }
-  );
+// =====================================================
+// MANEJO DE ERRORES (polling)
+// =====================================================
+bot.on('polling_error', (error) => {
+  console.warn(`⚠️ Error de polling: ${error.code} - ${error.message}`);
 });
 
-console.log('🤖 Bot corriendo con Groq y WeatherAPI...'); 
+console.log('🤖 Bot corriendo con imagen + texto en cada respuesta...');
