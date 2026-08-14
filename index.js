@@ -27,8 +27,7 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // =====================================================
-//  FUNCIÓN PARA OBTENER IMAGEN DE WAIFU DESDE API
-//  (SIEMPRE DEVUELVE UNA URL NUEVA)
+//  🖼️ OBTENER IMAGEN DE WAIFU DESDE API (SIN DUPLICADOS)
 // =====================================================
 async function getWaifuImage() {
   try {
@@ -36,13 +35,12 @@ async function getWaifuImage() {
     return response.data.url;
   } catch (error) {
     console.warn('⚠️ Error obteniendo waifu, usando imagen de respaldo:', error.message);
-    // Imagen de respaldo por si falla la API
     return 'https://i.waifu.pics/qUY7BBo.jpg';
   }
 }
 
 // =====================================================
-//  FUNCIÓN PARA ENVIAR IMAGEN + TEXTO (ACTUALIZADA)
+//  FUNCIÓN ÚNICA PARA ENVIAR IMAGEN + TEXTO
 // =====================================================
 async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
   try {
@@ -54,24 +52,8 @@ async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
   }
 }
 
-const getRandomImage = () => {
-  return misImagenes[Math.floor(Math.random() * misImagenes.length)];
-};
-
 // =====================================================
-//  FUNCIÓN SEGURA PARA ENVIAR IMAGEN + TEXTO
-// =====================================================
-async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
-  try {
-    await bot.sendPhoto(chatId, getRandomImage(), { caption, parse_mode: parseMode });
-  } catch (error) {
-    console.warn('⚠️ Error enviando imagen, enviando solo texto:', error.message);
-    await bot.sendMessage(chatId, caption, { parse_mode: parseMode });
-  }
-}
-
-// =====================================================
-//  COMANDO /start (BIENVENIDA COMPLETA)
+//  COMANDO /start
 // =====================================================
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
@@ -85,8 +67,8 @@ bot.onText(/\/start/, async (msg) => {
 /ai [texto] - IA (Groq)
 /imagen [descripción] - Genera imagen IA
 /clima [ciudad] - Clima
-/video [búsqueda] - Descarga video de YouTube
-/music [búsqueda] - Descarga audio de YouTube
+/video [búsqueda] - Descarga audio de YouTube
+/music [búsqueda] - Alias de /video
 /qr [texto] - Genera QR
 /leerqr - Lee QR (responde a una foto)
 /dolar - Precio del dólar
@@ -108,7 +90,7 @@ bot.onText(/\/start/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /help (LISTA COMPLETA)
+//  COMANDO /help
 // =====================================================
 bot.onText(/\/help/, async (msg) => {
   const chatId = msg.chat.id;
@@ -121,8 +103,8 @@ bot.onText(/\/help/, async (msg) => {
 /ai [texto] - Pregunta a la IA (Groq)
 /imagen [descripción] - Genera imagen con IA
 /clima [ciudad] - Clima actual
-/video [búsqueda] - Descarga video de YouTube
-/music [búsqueda] - Descarga audio de YouTube
+/video [búsqueda] - Descarga audio de YouTube
+/music [búsqueda] - Alias de /video
 /qr [texto] - Genera código QR
 /leerqr - Lee QR (responde a una foto)
 /dolar - Precio del dólar (Blue y Oficial)
@@ -155,7 +137,7 @@ bot.onText(/\/ping/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /test (DIAGNÓSTICO)
+//  COMANDO /test
 // =====================================================
 bot.onText(/\/test/, async (msg) => {
   const chatId = msg.chat.id;
@@ -168,7 +150,7 @@ bot.onText(/\/test/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /ai (GROQ)
+//  COMANDO /ai
 // =====================================================
 if (groq) {
   bot.onText(/\/ai (.+)/, async (msg, match) => {
@@ -194,7 +176,7 @@ if (groq) {
 }
 
 // =====================================================
-//  COMANDO /imagen (GENERA IMAGEN CON POLLINATIONS)
+//  COMANDO /imagen
 // =====================================================
 bot.onText(/\/imagen (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -209,7 +191,7 @@ bot.onText(/\/imagen (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /clima (CON WEATHERAPI)
+//  COMANDO /clima
 // =====================================================
 if (WEATHER_API_KEY) {
   bot.onText(/\/clima (.+)/, async (msg, match) => {
@@ -237,7 +219,7 @@ if (WEATHER_API_KEY) {
 }
 
 // =====================================================
-//  COMANDO /video (DESCARGA AUDIO DE YOUTUBE)
+//  COMANDO /video
 // =====================================================
 bot.onText(/\/video (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -257,14 +239,14 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /music (ALIAS DE /video)
+//  COMANDO /music (alias de /video)
 // =====================================================
 bot.onText(/\/music (.+)/, (msg, match) => {
   bot.emit('text', { ...msg, text: `/video ${match[1]}` });
 });
 
 // =====================================================
-//  COMANDO /qr (GENERA QR)
+//  COMANDO /qr
 // =====================================================
 bot.onText(/\/qr (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -285,7 +267,7 @@ bot.onText(/\/leerqr/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /dolar (COTIZACIÓN)
+//  COMANDO /dolar
 // =====================================================
 bot.onText(/\/dolar/, async (msg) => {
   const chatId = msg.chat.id;
@@ -340,7 +322,7 @@ bot.onText(/\/wikipedia (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /resumen (RESUME UNA URL)
+//  COMANDO /resumen
 // =====================================================
 bot.onText(/\/resumen (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -413,7 +395,7 @@ bot.onText(/\/adivina/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /horoscopo (CON GROQ, SIN API EXTERNA)
+//  COMANDO /horoscopo (CON GROQ)
 // =====================================================
 if (groq) {
   bot.onText(/\/horoscopo (.+)/, async (msg, match) => {
@@ -459,7 +441,7 @@ bot.onText(/\/noticias/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /traducir (CON GROQ)
+//  COMANDO /traducir
 // =====================================================
 if (groq) {
   bot.onText(/\/traducir (.+)/, async (msg, match) => {
@@ -498,7 +480,7 @@ bot.onText(/\/chiste/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /poema (CON GROQ)
+//  COMANDO /poema
 // =====================================================
 if (groq) {
   bot.onText(/\/poema (.+)/, async (msg, match) => {
@@ -580,5 +562,5 @@ bot.on('polling_error', (error) => {
   console.warn(`⚠️ Error de polling: ${error.code} - ${error.message}`);
 });
 
-console.log('🌸 Bot de Kaori Miyazono corriendo con todas las imágenes...');
+console.log('🌸 Bot de Kaori Miyazono corriendo con waifus...');
 console.log('🎻 Comandos: 22 disponibles');
