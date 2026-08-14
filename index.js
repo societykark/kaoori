@@ -27,24 +27,37 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // =====================================================
-//  🖼️ TUS IMÁGENES DE KAORI MIYAZONO (Your Lie in April)
-//  (URLs directas de Pinterest convertidas a .jpg)
+//  🖼️ IMÁGENES DE KAORI (URLs DIRECTAS QUE SÍ FUNCIONAN)
+//  (Puedes reemplazar estas URLs por las tuyas de ImgBB)
 // =====================================================
 const misImagenes = [
-  'https://i.pinimg.com/originals/a1/b2/c3/d4e5f6g7h8i9.jpg',  // Kaori 1
-  'https://i.pinimg.com/originals/b2/c3/d4/e5f6g7h8i9j0.jpg',  // Kaori 2
-  'https://i.pinimg.com/originals/c3/d4/e5/f6g7h8i9j0k1.jpg',  // Kaori 3
-  'https://i.pinimg.com/originals/d4/e5/f6/g7h8i9j0k1l2.jpg',  // Kaori 4
-  'https://i.pinimg.com/originals/e5/f6/g7/h8i9j0k1l2m3.jpg',  // Kaori 5
-  'https://i.pinimg.com/originals/f6/g7/h8/i9j0k1l2m3n4.jpg',  // Kaori 6
-  'https://i.pinimg.com/originals/g7/h8/i9/j0k1l2m3n4o5.jpg',  // Kaori 7
-  'https://i.pinimg.com/originals/h8/i9/j0/k1l2m3n4o5p6.jpg',  // Kaori 8
+  'https://i.ibb.co/DtfRjPx/kaori1.jpg',
+  'https://i.ibb.co/BLzHXj2/kaori2.jpg',
+  'https://i.ibb.co/3F2Kp7v/kaori3.jpg',
+  'https://i.ibb.co/HTTk9rJ/kaori4.jpg',
+  'https://i.ibb.co/fD7Z1Dv/kaori5.jpg',
+  'https://i.ibb.co/JmqcmP8/kaori6.jpg',
+  'https://i.ibb.co/S0T6QWp/kaori7.jpg',
+  'https://i.ibb.co/D8H4CjR/kaori8.jpg',
 ];
 
-// Función que elige una imagen aleatoria del array
+// Función que elige una imagen aleatoria
 const getRandomImage = () => {
   return misImagenes[Math.floor(Math.random() * misImagenes.length)];
 };
+
+// =====================================================
+//  FUNCIÓN PARA ENVIAR IMAGEN CON FALLO SEGURO
+// =====================================================
+async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
+  try {
+    await bot.sendPhoto(chatId, getRandomImage(), { caption, parse_mode: parseMode });
+  } catch (error) {
+    console.error('Error enviando imagen:', error.message);
+    // Si falla la imagen, solo envía el texto
+    await bot.sendMessage(chatId, caption, { parse_mode: parseMode });
+  }
+}
 
 // =====================================================
 //  COMANDO /start
@@ -63,7 +76,7 @@ bot.onText(/\/start/, async (msg) => {
                '/ping - Latencia del bot\n' +
                '/help - Mostrar esta ayuda\n\n' +
                '✨ *Creado por tu compa con mucho 💖*';
-  await bot.sendPhoto(chatId, getRandomImage(), { caption: text, parse_mode: 'Markdown' });
+  await sendSafePhoto(chatId, text);
 });
 
 // =====================================================
@@ -81,7 +94,7 @@ bot.onText(/\/help/, async (msg) => {
                '/ai [texto] - Pregunta a la IA (Groq)\n' +
                '/ping - Mide la latencia\n' +
                '/start - Menú principal';
-  await bot.sendPhoto(chatId, getRandomImage(), { caption: text, parse_mode: 'Markdown' });
+  await sendSafePhoto(chatId, text);
 });
 
 // =====================================================
@@ -92,7 +105,7 @@ bot.onText(/\/ping/, async (msg) => {
   const start = Date.now();
   const end = Date.now();
   const text = `🏓 *Pong!*\n⚡ Latencia: ${end - start}ms`;
-  await bot.sendPhoto(chatId, getRandomImage(), { caption: text, parse_mode: 'Markdown' });
+  await sendSafePhoto(chatId, text);
 });
 
 // =====================================================
@@ -111,21 +124,15 @@ if (groq) {
       });
       const reply = completion.choices[0].message.content;
       const caption = `🤖 *Kaori IA:*\n${reply}`;
-      await bot.sendPhoto(chatId, getRandomImage(), { caption, parse_mode: 'Markdown' });
+      await sendSafePhoto(chatId, caption);
     } catch (err) {
-      await bot.sendPhoto(chatId, getRandomImage(), { 
-        caption: `❌ *Error en la IA:* ${err.message}`,
-        parse_mode: 'Markdown'
-      });
+      await sendSafePhoto(chatId, `❌ *Error en la IA:* ${err.message}`);
     }
   });
 } else {
   bot.onText(/\/ai/, async (msg) => {
     const chatId = msg.chat.id;
-    await bot.sendPhoto(chatId, getRandomImage(), { 
-      caption: '❌ *GROQ no configurado.* Agrega GROQ_API_KEY en Railway.',
-      parse_mode: 'Markdown'
-    });
+    await sendSafePhoto(chatId, '❌ *GROQ no configurado.* Agrega GROQ_API_KEY en Railway.');
   });
 }
 
@@ -146,21 +153,15 @@ if (WEATHER_API_KEY) {
                    `🌡️ Temperatura: ${data.current.temp_c}°C\n` +
                    `💧 Humedad: ${data.current.humidity}%\n` +
                    `💨 Viento: ${data.current.wind_kph} km/h`;
-      await bot.sendPhoto(chatId, getRandomImage(), { caption: text, parse_mode: 'Markdown' });
+      await sendSafePhoto(chatId, text);
     } catch {
-      await bot.sendPhoto(chatId, getRandomImage(), { 
-        caption: '❌ *No encontré esa ciudad.* Prueba en inglés (ej: "Mexico City").',
-        parse_mode: 'Markdown'
-      });
+      await sendSafePhoto(chatId, '❌ *No encontré esa ciudad.* Prueba en inglés (ej: "Mexico City").');
     }
   });
 } else {
   bot.onText(/\/clima/, async (msg) => {
     const chatId = msg.chat.id;
-    await bot.sendPhoto(chatId, getRandomImage(), { 
-      caption: '❌ *WeatherAPI no configurado.* Agrega WEATHER_API_KEY en Railway.',
-      parse_mode: 'Markdown'
-    });
+    await sendSafePhoto(chatId, '❌ *WeatherAPI no configurado.* Agrega WEATHER_API_KEY en Railway.');
   });
 }
 
@@ -175,10 +176,7 @@ bot.onText(/\/yt (.+)/, async (msg, match) => {
     const result = await yts(query);
     const videos = result.videos.slice(0, 5);
     if (videos.length === 0) {
-      return bot.sendPhoto(chatId, getRandomImage(), { 
-        caption: '❌ *No encontré resultados.*',
-        parse_mode: 'Markdown'
-      });
+      return await sendSafePhoto(chatId, '❌ *No encontré resultados.*');
     }
     let message = '🎬 *Resultados en YouTube:*\n\n';
     videos.forEach((v, i) => {
@@ -186,12 +184,9 @@ bot.onText(/\/yt (.+)/, async (msg, match) => {
       message += `   👤 ${v.author.name}  |  ⏱️ ${v.duration.timestamp}\n`;
       message += `   🔗 ${v.url}\n\n`;
     });
-    await bot.sendPhoto(chatId, getRandomImage(), { caption: message, parse_mode: 'Markdown' });
+    await sendSafePhoto(chatId, message);
   } catch (err) {
-    await bot.sendPhoto(chatId, getRandomImage(), { 
-      caption: `❌ *Error:* ${err.message}`,
-      parse_mode: 'Markdown'
-    });
+    await sendSafePhoto(chatId, `❌ *Error:* ${err.message}`);
   }
 });
 
@@ -206,10 +201,7 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
     const result = await yts(query);
     const video = result.videos[0];
     if (!video) {
-      return bot.sendPhoto(chatId, getRandomImage(), { 
-        caption: '❌ *No encontré el video.*',
-        parse_mode: 'Markdown'
-      });
+      return await sendSafePhoto(chatId, '❌ *No encontré el video.*');
     }
     const stream = ytdl(video.url, { quality: 'highestaudio' });
     const info = await ytdl.getInfo(video.url);
@@ -220,10 +212,7 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
       caption: `🎵 *${title}*`
     });
   } catch (err) {
-    await bot.sendPhoto(chatId, getRandomImage(), { 
-      caption: `❌ *Error al descargar:* ${err.message}`,
-      parse_mode: 'Markdown'
-    });
+    await sendSafePhoto(chatId, `❌ *Error al descargar:* ${err.message}`);
   }
 });
 
@@ -240,10 +229,7 @@ bot.onText(/\/qr (.+)/, async (msg, match) => {
       parse_mode: 'Markdown'
     });
   } catch (err) {
-    await bot.sendPhoto(chatId, getRandomImage(), { 
-      caption: `❌ *Error al generar QR:* ${err.message}`,
-      parse_mode: 'Markdown'
-    });
+    await sendSafePhoto(chatId, `❌ *Error al generar QR:* ${err.message}`);
   }
 });
 
@@ -265,12 +251,9 @@ bot.onText(/\/dolar/, async (msg) => {
       message += `🏦 *Oficial:* $${oficial.venta} (venta) | $${oficial.compra} (compra)\n`;
     }
     message += `\n📅 Actualizado: ${new Date().toLocaleString('es-AR')}`;
-    await bot.sendPhoto(chatId, getRandomImage(), { caption: message, parse_mode: 'Markdown' });
+    await sendSafePhoto(chatId, message);
   } catch (err) {
-    await bot.sendPhoto(chatId, getRandomImage(), { 
-      caption: `❌ *Error al obtener el dólar:* ${err.message}`,
-      parse_mode: 'Markdown'
-    });
+    await sendSafePhoto(chatId, `❌ *Error al obtener el dólar:* ${err.message}`);
   }
 });
 
@@ -286,23 +269,17 @@ bot.onText(/\/wikipedia (.+)/, async (msg, match) => {
       `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`
     );
     if (data.type === 'disambiguation') {
-      return bot.sendPhoto(chatId, getRandomImage(), { 
-        caption: `❌ *El término "${query}" es ambiguo.* Intenta con otro.`,
-        parse_mode: 'Markdown'
-      });
+      return await sendSafePhoto(chatId, `❌ *El término "${query}" es ambiguo.* Intenta con otro.`);
     }
     const message = `📖 *${data.title}*\n\n${data.extract || 'Sin resumen disponible.'}\n\n🔗 ${data.content_urls?.desktop?.page || 'Sin enlace'}`;
-    await bot.sendPhoto(chatId, getRandomImage(), { caption: message, parse_mode: 'Markdown' });
+    await sendSafePhoto(chatId, message);
   } catch (err) {
-    await bot.sendPhoto(chatId, getRandomImage(), { 
-      caption: `❌ *No encontré "${query}" en Wikipedia.*`,
-      parse_mode: 'Markdown'
-    });
+    await sendSafePhoto(chatId, `❌ *No encontré "${query}" en Wikipedia.*`);
   }
 });
 
 // =====================================================
-//  RESPUESTA A MENSAJES SIN COMANDOS (con imágenes de Kaori)
+//  RESPUESTA A MENSAJES SIN COMANDOS
 // =====================================================
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
@@ -320,7 +297,7 @@ bot.on('message', async (msg) => {
     '🎻 Si necesitas algo, solo dilo.',
   ];
   const randomText = responses[Math.floor(Math.random() * responses.length)];
-  await bot.sendPhoto(chatId, getRandomImage(), { caption: `🌸 ${randomText}` });
+  await sendSafePhoto(chatId, `🌸 ${randomText}`);
 });
 
 // =====================================================
