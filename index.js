@@ -113,4 +113,4 @@ bot.onText(/\/help/, (msg) => {
   );
 });
 
-console.log('🤖 Bot corriendo con Groq y WeatherAPI...');
+console.log('🤖 Bot corriendo con Groq y WeatherAPI...'); 
