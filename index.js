@@ -16,13 +16,10 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 
 if (!TELEGRAM_TOKEN) {
-  console.error('❌ FALTA TELEGRAM_TOKEN en variables de entorno');
+  console.error('❌ FALTA TELEGRAM_TOKEN');
   process.exit(1);
 }
 
-// =====================================================
-//  INICIALIZAR BOT Y CLIENTES
-// =====================================================
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
@@ -46,9 +43,17 @@ const getRandomImage = () => {
   return misImagenes[Math.floor(Math.random() * misImagenes.length)];
 };
 
-async function getWaifuImage() {
-  // Devuelve una imagen aleatoria de tu lista
-  return getRandomImage();
+// =====================================================
+//  FUNCIÓN PARA ENVIAR IMAGEN + TEXTO
+// =====================================================
+async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
+  try {
+    const imageUrl = getRandomImage();
+    await bot.sendPhoto(chatId, imageUrl, { caption, parse_mode: parseMode });
+  } catch (error) {
+    console.warn('⚠️ Error enviando imagen, enviando solo texto:', error.message);
+    await bot.sendMessage(chatId, caption, { parse_mode: parseMode });
+  }
 }
 
 // =====================================================
@@ -57,7 +62,7 @@ async function getWaifuImage() {
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const text = 
-`🌸 *¡Bienvenido al bot definitivo!* 🌸
+`🌸 *¡Bienvenido al bot de Kaori!* 🌸
 
 *Comandos disponibles:*
 /start - Inicio
@@ -94,7 +99,7 @@ bot.onText(/\/start/, async (msg) => {
 bot.onText(/\/help/, async (msg) => {
   const chatId = msg.chat.id;
   const text =
-`📋 *Lista completa de comandos:*
+`📋 *Lista de comandos:*
 
 /start - Inicio
 /ping - Latencia
@@ -561,5 +566,5 @@ bot.on('polling_error', (error) => {
   console.warn(`⚠️ Error de polling: ${error.code} - ${error.message}`);
 });
 
-console.log('🌸 Bot de Kaori Miyazono corriendo con waifus...');
+console.log('🌸 Bot de Kaori Miyazono corriendo con tus imágenes...');
 console.log('🎻 Comandos: 22 disponibles');
