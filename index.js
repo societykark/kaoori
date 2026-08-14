@@ -30,12 +30,18 @@ const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 //  🖼️ TUS IMÁGENES DE KAORI (URLs DIRECTAS DE IMGBB)
 // =====================================================
 const misImagenes = [
-  'https://i.ibb.co/Ps3kQZTM/IMG-4773.jpg',
-  'https://i.ibb.co/bMZBCtCX/IMG-4772.jpg',
-  'https://i.ibb.co/xppZrm6/IMG-4771.jpg',
-  'https://i.ibb.co/hxSFmKTL/IMG-4770.jpg',
-  'https://i.ibb.co/Gv7jwqVt/IMG-4684.jpg',
-  'https://i.ibb.co/7drPpZ64/IMG-4407.jpg',
+  const misImagenes = [
+  'https://i.ibb.co/F45TJJqH/IMG-4774.jpg',
+  'https://i.ibb.co/F4B8PMgt/IMG-4773.jpg',
+  'https://i.ibb.co/XfWQsvyV/IMG-4772.jpg',
+  'https://i.ibb.co/jvZTp0wk/IMG-4771.jpg',
+  'https://i.ibb.co/wZzSJskp/IMG-4770.jpg',
+  'https://i.ibb.co/ksKg5195/IMG-4684.jpg',
+  'https://i.ibb.co/Kxp9LBcg/IMG-4486.jpg',
+  'https://i.ibb.co/MkW7VxwG/IMG-4469.jpg',
+  'https://i.ibb.co/MDDP7wk0/IMG-4485.jpg',
+  'https://i.ibb.co/jkCh6SQW/IMG-4407.jpg',
+];
 ];
 
 const getRandomImage = () => {
