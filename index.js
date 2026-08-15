@@ -40,7 +40,6 @@ const misImagenes = [];
 
 try {
   const files = fs.readdirSync(imagenesFolder);
-  // Filtrar solo archivos de imagen (jpg, jpeg, png, gif)
   const imageFiles = files.filter(file =>
     file.endsWith('.jpg') || file.endsWith('.jpeg') ||
     file.endsWith('.png') || file.endsWith('.gif')
@@ -51,12 +50,10 @@ try {
   console.log(`✅ ${misImagenes.length} imágenes cargadas desde la carpeta local 'assets'`);
 } catch (error) {
   console.warn('⚠️ No se encontró la carpeta "assets", usando imágenes de respaldo.');
-  // Imágenes de respaldo (URLs de ImgBB por si falla la carpeta)
   misImagenes.push('https://i.ibb.co/F45TJJqH/IMG-4774.jpg');
   misImagenes.push('https://i.ibb.co/F4B8PMgt/IMG-4773.jpg');
 }
 
-// Función para obtener una imagen aleatoria
 const getRandomImage = () => {
   return misImagenes[Math.floor(Math.random() * misImagenes.length)];
 };
@@ -64,93 +61,263 @@ const getRandomImage = () => {
 // =====================================================
 //  FUNCIÓN PARA ENVIAR IMAGEN + TEXTO (DESDE LOCAL O URL)
 // =====================================================
-async function sendSafePhoto(chatId, caption, parseMode = 'Markdown') {
+async function sendSafePhoto(chatId, caption, parseMode = 'Markdown', extra = {}) {
   try {
     const imagePath = getRandomImage();
-    // Si es una URL (https://), la envía directamente
     if (imagePath.startsWith('http')) {
-      await bot.sendPhoto(chatId, imagePath, { caption, parse_mode: parseMode });
+      await bot.sendPhoto(chatId, imagePath, { caption, parse_mode: parseMode, ...extra });
     } else {
-      // Si es un archivo local, usa createReadStream
       const stream = fs.createReadStream(imagePath);
-      await bot.sendPhoto(chatId, stream, { caption, parse_mode: parseMode });
+      await bot.sendPhoto(chatId, stream, { caption, parse_mode: parseMode, ...extra });
     }
   } catch (error) {
     console.warn('⚠️ Error enviando imagen, enviando solo texto:', error.message);
-    await bot.sendMessage(chatId, caption, { parse_mode: parseMode });
+    await bot.sendMessage(chatId, caption, { parse_mode: parseMode, ...extra });
   }
 }
 
 // =====================================================
-//  COMANDO /start
+//  📂 CARGA DINÁMICA DE COMANDOS
+// =====================================================
+const commands = new Map();
+const commandsPath = path.join(__dirname, 'commands');
+let commandFiles = [];
+
+try {
+  commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+} catch (e) {
+  console.warn('⚠️ Carpeta /commands no encontrada');
+}
+
+for (const file of commandFiles) {
+  try {
+    const { default: cmd } = await import(`./commands/${file}`);
+    if (cmd?.name && typeof cmd.execute === 'function') {
+      commands.set(cmd.name, cmd);
+      console.log(`✅ Comando cargado: ${cmd.name}`);
+    }
+  } catch (err) {
+    console.error(`❌ Error al cargar ${file}:`, err);
+  }
+}
+
+console.log(`📦 ${commands.size} comandos cargados`);
+
+// =====================================================
+//  📋 DEFINICIÓN DE CATEGORÍAS Y COMANDOS PARA EL MENÚ
+// =====================================================
+const categorias = {
+  '🔍 Búsqueda': ['aisearchimg', 'pin', 'sp', 'stickers', 'tiktoksearch'],
+  '💾 Descarga': ['applemusic', 'facebook', 'instagram', 'mediafire', 'spotifydl', 'tiktokdl', 'yta', 'ytv'],
+  '🛠️ Herramientas': ['brat', 'cf', 'emojimix', 'whatmusic', 'transcribe'],
+  '🤖 IA': ['claude', 'gemini', 'qwen', 'zimg'],
+  '🎨 Canvas': ['welcome', 'goodbye'],
+  '📋 Otros': ['ping', 'test', 'dolar', 'bitcoin', 'wikipedia', 'resumen', 'trivia', 'adivina', 'horoscopo', 'noticias', 'traducir', 'chiste', 'poema', 'recordatorio', 'help']
+};
+
+// Comandos que NO requieren parámetros (se ejecutan directo al hacer clic)
+const noParams = ['ping', 'test', 'dolar', 'bitcoin', 'trivia', 'chiste', 'cf', 'noticias', 'help', 'start', 'menu'];
+
+// =====================================================
+//  🧠 FUNCIONES PARA GENERAR TECLADOS INLINE
+// =====================================================
+function getCategoriasKeyboard() {
+  const keys = Object.keys(categorias);
+  const keyboard = [];
+  for (let i = 0; i < keys.length; i += 2) {
+    const row = [];
+    row.push({ text: keys[i], callback_data: `cat_${i}` });
+    if (i + 1 < keys.length) {
+      row.push({ text: keys[i + 1], callback_data: `cat_${i + 1}` });
+    }
+    keyboard.push(row);
+  }
+  keyboard.push([{ text: '❓ Ayuda', callback_data: 'help' }]);
+  return keyboard;
+}
+
+function getComandosKeyboard(categoriaIndex) {
+  const keys = Object.keys(categorias);
+  const categoria = keys[categoriaIndex];
+  const comandos = categorias[categoria];
+  const keyboard = [];
+  for (const cmd of comandos) {
+    const label = `/${cmd}`;
+    keyboard.push([{ text: label, callback_data: `cmd_${cmd}` }]);
+  }
+  keyboard.push([{ text: '⬅️ Volver al menú', callback_data: 'volver' }]);
+  return keyboard;
+}
+
+// =====================================================
+//  🏠 COMANDO /start (MENÚ PRINCIPAL)
 // =====================================================
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  const text = 
-`🌸 *¡Bienvenido al bot de Kaori!* 🌸
+  const text =
+`🌸 *Kaori Bot – Menú Principal* 🌸
 
-*Comandos disponibles:*
-/start - Inicio
-/ping - Latencia
-/test - Diagnóstico
-/ai [texto] - IA (Groq)
-/imagen [descripción] - Genera imagen IA
-/clima [ciudad] - Clima
-/video [búsqueda] - Descarga audio de YouTube
-/music [búsqueda] - Alias de /video
-/qr [texto] - Genera QR
-/leerqr - Lee QR (responde a una foto)
-/dolar - Precio del dólar
-/bitcoin - Precio de Bitcoin
-/wikipedia [término] - Busca en Wikipedia
-/resumen [url] - Resume una página web
-/trivia - Pregunta de cultura general
-/adivina [número] - Adivina el número (1-100)
-/horoscopo [signo] - Horóscopo del día
-/noticias - Últimas noticias
-/traducir [texto] - Traduce a español
-/chiste - Chiste random
-/poema [tema] - Poema
-/recordatorio [tiempo] [texto] - Recordatorio
-/help - Ayuda
+Selecciona una categoría para ver los comandos:
 
-✨ *Creado por tu compa con mucho 💖*`;
-  await sendSafePhoto(chatId, text);
+🔍 Búsqueda – Busca imágenes, música, stickers, TikTok.
+💾 Descarga – Descarga de redes y YouTube.
+🛠️ Herramientas – Generadores, mezclas, transcripción.
+🤖 IA – Chat con Claude, Gemini, Qwen, generación de imágenes.
+🎨 Canvas – Imágenes de bienvenida y despedida.
+📋 Otros – Ping, clima, dólar, trivia, y más.
+
+*Cada imagen que ves es de Kaori Miyazono.* 🎻
+
+Usa /menu para volver a este menú en cualquier momento.`;
+  await sendSafePhoto(chatId, text, 'Markdown', {
+    reply_markup: { inline_keyboard: getCategoriasKeyboard() }
+  });
 });
 
 // =====================================================
-//  COMANDO /help
+//  🏠 COMANDO /menu (VUELVE AL MENÚ)
+// =====================================================
+bot.onText(/\/menu/, async (msg) => {
+  const chatId = msg.chat.id;
+  const text =
+`🌸 *Kaori Bot – Menú Principal* 🌸
+
+Selecciona una categoría para ver los comandos:
+
+🔍 Búsqueda – Busca imágenes, música, stickers, TikTok.
+💾 Descarga – Descarga de redes y YouTube.
+🛠️ Herramientas – Generadores, mezclas, transcripción.
+🤖 IA – Chat con Claude, Gemini, Qwen, generación de imágenes.
+🎨 Canvas – Imágenes de bienvenida y despedida.
+📋 Otros – Ping, clima, dólar, trivia, y más.
+
+*Cada imagen que ves es de Kaori Miyazono.* 🎻
+
+Usa /menu para volver a este menú en cualquier momento.`;
+  await sendSafePhoto(chatId, text, 'Markdown', {
+    reply_markup: { inline_keyboard: getCategoriasKeyboard() }
+  });
+});
+
+// =====================================================
+//  🎯 MANEJADOR DE CALLBACKS (BOTONES INLINE)
+// =====================================================
+bot.on('callback_query', async (callbackQuery) => {
+  const chatId = callbackQuery.message.chat.id;
+  const messageId = callbackQuery.message.message_id;
+  const data = callbackQuery.data;
+
+  // Categoría
+  if (data.startsWith('cat_')) {
+    const index = parseInt(data.split('_')[1]);
+    const keys = Object.keys(categorias);
+    const categoria = keys[index];
+    const keyboard = getComandosKeyboard(index);
+    const text = `📂 *${categoria}*\n\nSelecciona un comando:`;
+    await bot.editMessageText(text, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: keyboard }
+    });
+    await bot.answerCallbackQuery(callbackQuery.id);
+    return;
+  }
+
+  // Volver al menú
+  if (data === 'volver') {
+    const text =
+`🌸 *Kaori Bot – Menú Principal* 🌸
+
+Selecciona una categoría para ver los comandos:
+
+🔍 Búsqueda – Busca imágenes, música, stickers, TikTok.
+💾 Descarga – Descarga de redes y YouTube.
+🛠️ Herramientas – Generadores, mezclas, transcripción.
+🤖 IA – Chat con Claude, Gemini, Qwen, generación de imágenes.
+🎨 Canvas – Imágenes de bienvenida y despedida.
+📋 Otros – Ping, clima, dólar, trivia, y más.
+
+*Cada imagen que ves es de Kaori Miyazono.* 🎻
+
+Usa /menu para volver a este menú en cualquier momento.`;
+    await bot.editMessageText(text, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: getCategoriasKeyboard() }
+    });
+    await bot.answerCallbackQuery(callbackQuery.id);
+    return;
+  }
+
+  // Ayuda
+  if (data === 'help') {
+    const helpText = `📋 *Lista de comandos disponibles:*\n\n` +
+      `🔍 *Búsqueda:* /aisearchimg, /pin, /sp, /stickers, /tiktoksearch\n` +
+      `💾 *Descarga:* /applemusic, /facebook, /instagram, /mediafire, /spotifydl, /tiktokdl, /yta, /ytv\n` +
+      `🛠️ *Herramientas:* /brat, /cf, /emojimix, /whatmusic, /transcribe\n` +
+      `🤖 *IA:* /claude, /gemini, /qwen, /zimg\n` +
+      `🎨 *Canvas:* /welcome, /goodbye\n` +
+      `📋 *Otros:* /ping, /test, /dolar, /bitcoin, /wikipedia, /resumen, /trivia, /adivina, /horoscopo, /noticias, /traducir, /chiste, /poema, /recordatorio, /help, /menu\n\n` +
+      `Usa /menu para ver el menú con botones.`;
+    await bot.editMessageText(helpText, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: [[{ text: '⬅️ Volver al menú', callback_data: 'volver' }]] }
+    });
+    await bot.answerCallbackQuery(callbackQuery.id);
+    return;
+  }
+
+  // Comando
+  if (data.startsWith('cmd_')) {
+    const cmdName = data.split('_')[1];
+    // Si el comando no requiere parámetros, lo ejecutamos directamente
+    if (noParams.includes(cmdName)) {
+      // Buscar el comando en el mapa
+      const cmd = commands.get(cmdName);
+      if (cmd) {
+        // Simular un mensaje con el comando
+        const fakeMsg = { chat: { id: chatId }, text: `/${cmdName}` };
+        try {
+          await cmd.execute({ bot, chatId, args: [], m: fakeMsg });
+        } catch (err) {
+          console.error(`Error ejecutando /${cmdName}:`, err);
+          await bot.sendMessage(chatId, `❌ Error al ejecutar /${cmdName}.`);
+        }
+      } else {
+        await bot.sendMessage(chatId, `❌ Comando /${cmdName} no encontrado.`);
+      }
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `Ejecutando /${cmdName}...` });
+    } else {
+      // Si requiere parámetros, enviamos el comando al chat para que el usuario lo complete
+      await bot.sendMessage(chatId, `/${cmdName} `);
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `Escribe lo que necesitas después del comando.` });
+    }
+    // Cerrar el menú o mantenerlo abierto? Mejor no cerrarlo, que el usuario pueda seguir usando.
+    // Pero para evitar confusiones, no editamos el mensaje.
+    return;
+  }
+
+  await bot.answerCallbackQuery(callbackQuery.id);
+});
+
+// =====================================================
+//  COMANDO /help (LISTA DE COMANDOS)
 // =====================================================
 bot.onText(/\/help/, async (msg) => {
   const chatId = msg.chat.id;
   const text =
-`📋 *Lista de comandos:*
-
-/start - Inicio
-/ping - Latencia
-/test - Diagnóstico
-/ai [texto] - Pregunta a la IA (Groq)
-/imagen [descripción] - Genera imagen con IA
-/clima [ciudad] - Clima actual
-/video [búsqueda] - Descarga audio de YouTube
-/music [búsqueda] - Alias de /video
-/qr [texto] - Genera código QR
-/leerqr - Lee QR (responde a una foto)
-/dolar - Precio del dólar (Blue y Oficial)
-/bitcoin - Precio de Bitcoin
-/wikipedia [término] - Resumen de Wikipedia
-/resumen [url] - Resume una página web
-/trivia - Pregunta de cultura general
-/adivina [número] - Adivina el número (1-100)
-/horoscopo [signo] - Horóscopo del día
-/noticias - Últimas noticias
-/traducir [texto] - Traduce a español
-/chiste - Chiste random
-/poema [tema] - Poema
-/recordatorio [tiempo] [texto] - Recordatorio
-/help - Esta ayuda
-
-🎻 *¡Diviértete!*`;
+`📋 *Lista de comandos disponibles:*\n\n` +
+`🔍 *Búsqueda:* /aisearchimg, /pin, /sp, /stickers, /tiktoksearch\n` +
+`💾 *Descarga:* /applemusic, /facebook, /instagram, /mediafire, /spotifydl, /tiktokdl, /yta, /ytv\n` +
+`🛠️ *Herramientas:* /brat, /cf, /emojimix, /whatmusic, /transcribe\n` +
+`🤖 *IA:* /claude, /gemini, /qwen, /zimg\n` +
+`🎨 *Canvas:* /welcome, /goodbye\n` +
+`📋 *Otros:* /ping, /test, /dolar, /bitcoin, /wikipedia, /resumen, /trivia, /adivina, /horoscopo, /noticias, /traducir, /chiste, /poema, /recordatorio, /help, /menu\n\n` +
+`Usa /menu para ver el menú con botones.`;
   await sendSafePhoto(chatId, text);
 });
 
@@ -166,7 +333,7 @@ bot.onText(/\/ping/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /test
+//  COMANDO /test (DIAGNÓSTICO)
 // =====================================================
 bot.onText(/\/test/, async (msg) => {
   const chatId = msg.chat.id;
@@ -175,11 +342,12 @@ bot.onText(/\/test/, async (msg) => {
   report += `✅ GROQ_API_KEY: ${GROQ_API_KEY ? 'OK' : 'FALTA'}\n`;
   report += `✅ WEATHER_API_KEY: ${WEATHER_API_KEY ? 'OK' : 'FALTA'}\n`;
   report += `🖼️ Imágenes cargadas: ${misImagenes.length}`;
+  report += `\n📦 Comandos cargados: ${commands.size}`;
   await sendSafePhoto(chatId, report);
 });
 
 // =====================================================
-//  COMANDO /ai
+//  COMANDO /ai (GROQ)
 // =====================================================
 if (groq) {
   bot.onText(/\/ai (.+)/, async (msg, match) => {
@@ -205,7 +373,7 @@ if (groq) {
 }
 
 // =====================================================
-//  COMANDO /imagen
+//  COMANDO /imagen (GENERA IMAGEN CON POLLINATIONS)
 // =====================================================
 bot.onText(/\/imagen (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -220,7 +388,7 @@ bot.onText(/\/imagen (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /clima
+//  COMANDO /clima (CON WEATHERAPI)
 // =====================================================
 if (WEATHER_API_KEY) {
   bot.onText(/\/clima (.+)/, async (msg, match) => {
@@ -248,7 +416,7 @@ if (WEATHER_API_KEY) {
 }
 
 // =====================================================
-//  COMANDO /video
+//  COMANDO /video (DESCARGA AUDIO DE YOUTUBE)
 // =====================================================
 bot.onText(/\/video (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -268,14 +436,14 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /music (alias de /video)
+//  COMANDO /music (ALIAS DE /video)
 // =====================================================
 bot.onText(/\/music (.+)/, (msg, match) => {
   bot.emit('text', { ...msg, text: `/video ${match[1]}` });
 });
 
 // =====================================================
-//  COMANDO /qr
+//  COMANDO /qr (GENERA QR)
 // =====================================================
 bot.onText(/\/qr (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -296,7 +464,7 @@ bot.onText(/\/leerqr/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /dolar
+//  COMANDO /dolar (COTIZACIÓN)
 // =====================================================
 bot.onText(/\/dolar/, async (msg) => {
   const chatId = msg.chat.id;
@@ -351,7 +519,7 @@ bot.onText(/\/wikipedia (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /resumen
+//  COMANDO /resumen (RESUME UNA URL)
 // =====================================================
 bot.onText(/\/resumen (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -470,7 +638,7 @@ bot.onText(/\/noticias/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /traducir
+//  COMANDO /traducir (CON GROQ)
 // =====================================================
 if (groq) {
   bot.onText(/\/traducir (.+)/, async (msg, match) => {
@@ -509,7 +677,7 @@ bot.onText(/\/chiste/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /poema
+//  COMANDO /poema (CON GROQ)
 // =====================================================
 if (groq) {
   bot.onText(/\/poema (.+)/, async (msg, match) => {
@@ -591,6 +759,6 @@ bot.on('polling_error', (error) => {
   console.warn(`⚠️ Error de polling: ${error.code} - ${error.message}`);
 });
 
-console.log('🌸 Bot de Kaori Miyazono corriendo con imágenes locales...');
+console.log('🌸 Bot de Kaori Miyazono corriendo con menú de botones...');
 console.log(`🖼️ ${misImagenes.length} imágenes cargadas desde 'assets'`);
-console.log('🎻 Comandos: 22 disponibles');
+console.log(`📦 ${commands.size} comandos disponibles`);
