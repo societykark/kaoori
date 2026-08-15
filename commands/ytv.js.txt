@@ -1,0 +1,19 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'ytv',
+  description: 'Descarga video de YouTube',
+  async execute({ bot, chatId, args }) {
+    if (!args.length) return bot.sendMessage(chatId, '❌ Uso: /ytv [url o búsqueda]');
+    const query = args.join(' ');
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const res = await fetch(`https://api.lempi.lat/dl/ytv?q=${encodeURIComponent(query)}&apikey=lem336`);
+      const data = await res.json();
+      if (data?.download_url) await bot.sendVideo(chatId, data.download_url);
+      else await bot.sendMessage(chatId, '❌ No se pudo descargar el video.');
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al descargar.');
+    }
+  }
+};

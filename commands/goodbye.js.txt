@@ -1,0 +1,18 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'goodbye',
+  description: 'Genera imagen de despedida',
+  async execute({ bot, chatId, args }) {
+    const username = args[0] || 'Usuario';
+    const guildName = args[1] || 'Club de Anime';
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const url = `https://api.lempi.lat/api/canvas/goodbyev1?username=${encodeURIComponent(username)}&guildName=${encodeURIComponent(guildName)}&guildIcon=https%3A%2F%2Fapi.lempi.lat%2FUka.jpg&memberCount=150&avatar=https%3A%2F%2Fapi.lempi.lat%2FBiy.jpg&background=https%3A%2F%2Fapi.lempi.lat%2FRlK.jpg&quality=80&apikey=lem336`;
+      const buffer = await fetch(url).then(r => r.buffer());
+      await bot.sendPhoto(chatId, buffer, { caption: `👋 ¡Hasta luego ${username}!` });
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al generar la imagen de despedida.');
+    }
+  }
+};

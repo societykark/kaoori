@@ -1,0 +1,17 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'cf',
+  description: 'Obtén información del flujo actual',
+  async execute({ bot, chatId }) {
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const res = await fetch(`https://api.lempi.lat/tools/cf?apikey=lem336`);
+      const data = await res.json();
+      if (data?.result) await bot.sendMessage(chatId, `🌊 *Current Flow:*\n${data.result}`);
+      else await bot.sendMessage(chatId, '❌ No se pudo obtener el flujo actual.');
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al obtener datos.');
+    }
+  }
+};

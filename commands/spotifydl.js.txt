@@ -1,0 +1,19 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'spotifydl',
+  description: 'Descarga canciones de Spotify',
+  async execute({ bot, chatId, args }) {
+    if (!args.length) return bot.sendMessage(chatId, '❌ Uso: /spotifydl [url]');
+    const url = args[0];
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const res = await fetch(`https://api.lempi.lat/dl/spotify?url=${encodeURIComponent(url)}&apikey=lem336`);
+      const data = await res.json();
+      if (data?.download_url) await bot.sendAudio(chatId, data.download_url);
+      else await bot.sendMessage(chatId, '❌ No se pudo descargar la canción.');
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al descargar.');
+    }
+  }
+};

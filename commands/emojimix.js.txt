@@ -1,0 +1,18 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'emojimix',
+  description: 'Mezcla dos emojis',
+  async execute({ bot, chatId, args }) {
+    if (args.length < 2) return bot.sendMessage(chatId, '❌ Uso: /emojimix [emoji1] [emoji2]');
+    const [emoji1, emoji2] = args;
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const res = await fetch(`https://api.lempi.lat/tools/emojimix?emoji1=${encodeURIComponent(emoji1)}&emoji2=${encodeURIComponent(emoji2)}&apikey=lem336`);
+      const buffer = await res.buffer();
+      await bot.sendPhoto(chatId, buffer, { caption: `🔮 ${emoji1} + ${emoji2}` });
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al mezclar emojis.');
+    }
+  }
+};

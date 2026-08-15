@@ -1,0 +1,19 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'aisearchimg',
+  description: 'Busca imágenes usando IA (Lempi)',
+  async execute({ bot, chatId, args }) {
+    if (!args.length) return bot.sendMessage(chatId, '❌ Uso: /aisearchimg [texto]');
+    const query = args.join(' ');
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const res = await fetch(`https://api.lempi.lat/s/aisearchimg?q=${encodeURIComponent(query)}&apikey=lem336`);
+      const data = await res.json();
+      if (data?.url) await bot.sendPhoto(chatId, data.url, { caption: `🖼️ "${query}"` });
+      else await bot.sendMessage(chatId, '❌ No encontré resultados.');
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al buscar imágenes.');
+    }
+  }
+};

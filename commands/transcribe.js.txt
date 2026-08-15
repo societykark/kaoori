@@ -1,0 +1,19 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'transcribe',
+  description: 'Transcribe audio o video a texto',
+  async execute({ bot, chatId, args }) {
+    if (!args.length) return bot.sendMessage(chatId, '❌ Uso: /transcribe [url]');
+    const url = args[0];
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const res = await fetch(`https://api.lempi.lat/tools/transcribe?url=${encodeURIComponent(url)}&apikey=lem336`);
+      const data = await res.json();
+      if (data?.text) await bot.sendMessage(chatId, `📝 *Transcripción:*\n${data.text}`);
+      else await bot.sendMessage(chatId, '❌ No se pudo transcribir.');
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al transcribir.');
+    }
+  }
+};

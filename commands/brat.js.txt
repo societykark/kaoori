@@ -1,0 +1,18 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'brat',
+  description: 'Genera imagen estilo Brat con texto',
+  async execute({ bot, chatId, args }) {
+    if (!args.length) return bot.sendMessage(chatId, '❌ Uso: /brat [texto]');
+    const text = args.join(' ');
+    await bot.sendChatAction(chatId, 'typing');
+    try {
+      const res = await fetch(`https://api.lempi.lat/tools/brat?text=${encodeURIComponent(text)}&color=verde&format=image&apikey=lem336`);
+      const buffer = await res.buffer();
+      await bot.sendPhoto(chatId, buffer, { caption: `😈 "${text}"` });
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al generar la imagen Brat.');
+    }
+  }
+};

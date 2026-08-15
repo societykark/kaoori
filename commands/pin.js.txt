@@ -1,0 +1,17 @@
+import fetch from 'node-fetch';
+
+export default {
+  name: 'pin',
+  description: 'Busca imágenes en Pinterest',
+  async execute({ bot, chatId, args }) {
+    const limit = parseInt(args[0]) || 20;
+    try {
+      const res = await fetch(`https://api.lempi.lat/s/pin?limit=${limit}&apikey=lem336`);
+      const data = await res.json();
+      if (data?.images) await bot.sendPhoto(chatId, data.images[0], { caption: '📌 Resultados de Pinterest' });
+      else await bot.sendMessage(chatId, '❌ No encontré imágenes.');
+    } catch {
+      await bot.sendMessage(chatId, '❌ Error al buscar en Pinterest.');
+    }
+  }
+};
