@@ -8,29 +8,28 @@ import ytdl from 'ytdl-core';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 dotenv.config();
 
 // =====================================================
-//  CONFIGURACIÓN DE VARIABLES DE ENTORNO
+//  CONFIGURACIÓN
 // =====================================================
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
+const LEMPI_API_KEY = 'lem336'; // API key de Lempi
 
 if (!TELEGRAM_TOKEN) {
-  console.error('❌ FALTA TELEGRAM_TOKEN en variables de entorno');
+  console.error('❌ FALTA TELEGRAM_TOKEN');
   process.exit(1);
 }
 
-// =====================================================
-//  INICIALIZAR BOT Y CLIENTES
-// =====================================================
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // =====================================================
-//  🖼️ CARGAR IMÁGENES DESDE LA CARPETA LOCAL 'assets'
+//  🖼️ IMÁGENES LOCALES (carpeta /assets)
 // =====================================================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,26 +40,21 @@ const misImagenes = [];
 try {
   const files = fs.readdirSync(imagenesFolder);
   const imageFiles = files.filter(file =>
-    file.endsWith('.jpg') || file.endsWith('.jpeg') ||
-    file.endsWith('.png') || file.endsWith('.gif')
+    file.endsWith('.jpg') || file.endsWith('.jpeg') || file.endsWith('.png') || file.endsWith('.gif')
   );
   imageFiles.forEach(file => {
     misImagenes.push(path.join(imagenesFolder, file));
   });
-  console.log(`✅ ${misImagenes.length} imágenes cargadas desde la carpeta local 'assets'`);
+  console.log(`✅ ${misImagenes.length} imágenes cargadas desde 'assets'`);
 } catch (error) {
   console.warn('⚠️ No se encontró la carpeta "assets", usando imágenes de respaldo.');
   misImagenes.push('https://i.ibb.co/F45TJJqH/IMG-4774.jpg');
-  misImagenes.push('https://i.ibb.co/F4B8PMgt/IMG-4773.jpg');
 }
 
 const getRandomImage = () => {
   return misImagenes[Math.floor(Math.random() * misImagenes.length)];
 };
 
-// =====================================================
-//  FUNCIÓN PARA ENVIAR IMAGEN + TEXTO (DESDE LOCAL O URL)
-// =====================================================
 async function sendSafePhoto(chatId, caption, parseMode = 'Markdown', extra = {}) {
   try {
     const imagePath = getRandomImage();
@@ -77,263 +71,135 @@ async function sendSafePhoto(chatId, caption, parseMode = 'Markdown', extra = {}
 }
 
 // =====================================================
-//  📂 CARGA DINÁMICA DE COMANDOS
-// =====================================================
-const commands = new Map();
-const commandsPath = path.join(__dirname, 'commands');
-let commandFiles = [];
-
-try {
-  commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-} catch (e) {
-  console.warn('⚠️ Carpeta /commands no encontrada');
-}
-
-for (const file of commandFiles) {
-  try {
-    const { default: cmd } = await import(`./commands/${file}`);
-    if (cmd?.name && typeof cmd.execute === 'function') {
-      commands.set(cmd.name, cmd);
-      console.log(`✅ Comando cargado: ${cmd.name}`);
-    }
-  } catch (err) {
-    console.error(`❌ Error al cargar ${file}:`, err);
-  }
-}
-
-console.log(`📦 ${commands.size} comandos cargados`);
-
-// =====================================================
-//  📋 DEFINICIÓN DE CATEGORÍAS Y COMANDOS PARA EL MENÚ
-// =====================================================
-const categorias = {
-  '🔍 Búsqueda': ['aisearchimg', 'pin', 'sp', 'stickers', 'tiktoksearch'],
-  '💾 Descarga': ['applemusic', 'facebook', 'instagram', 'mediafire', 'spotifydl', 'tiktokdl', 'yta', 'ytv'],
-  '🛠️ Herramientas': ['brat', 'cf', 'emojimix', 'whatmusic', 'transcribe'],
-  '🤖 IA': ['claude', 'gemini', 'qwen', 'zimg'],
-  '🎨 Canvas': ['welcome', 'goodbye'],
-  '📋 Otros': ['ping', 'test', 'dolar', 'bitcoin', 'wikipedia', 'resumen', 'trivia', 'adivina', 'horoscopo', 'noticias', 'traducir', 'chiste', 'poema', 'recordatorio', 'help']
-};
-
-// Comandos que NO requieren parámetros (se ejecutan directo al hacer clic)
-const noParams = ['ping', 'test', 'dolar', 'bitcoin', 'trivia', 'chiste', 'cf', 'noticias', 'help', 'start', 'menu'];
-
-// =====================================================
-//  🧠 FUNCIONES PARA GENERAR TECLADOS INLINE
-// =====================================================
-function getCategoriasKeyboard() {
-  const keys = Object.keys(categorias);
-  const keyboard = [];
-  for (let i = 0; i < keys.length; i += 2) {
-    const row = [];
-    row.push({ text: keys[i], callback_data: `cat_${i}` });
-    if (i + 1 < keys.length) {
-      row.push({ text: keys[i + 1], callback_data: `cat_${i + 1}` });
-    }
-    keyboard.push(row);
-  }
-  keyboard.push([{ text: '❓ Ayuda', callback_data: 'help' }]);
-  return keyboard;
-}
-
-function getComandosKeyboard(categoriaIndex) {
-  const keys = Object.keys(categorias);
-  const categoria = keys[categoriaIndex];
-  const comandos = categorias[categoria];
-  const keyboard = [];
-  for (const cmd of comandos) {
-    const label = `/${cmd}`;
-    keyboard.push([{ text: label, callback_data: `cmd_${cmd}` }]);
-  }
-  keyboard.push([{ text: '⬅️ Volver al menú', callback_data: 'volver' }]);
-  return keyboard;
-}
-
-// =====================================================
-//  🏠 COMANDO /start (MENÚ PRINCIPAL)
+//  🏠 COMANDO /start
 // =====================================================
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const text =
-`🌸 *Kaori Bot – Menú Principal* 🌸
+`🌸 *Kaori Bot* 🎻
 
-Selecciona una categoría para ver los comandos:
+Inspirado en *Your Lie in April*. Cada interacción incluye una imagen de Kaori.
 
-🔍 Búsqueda – Busca imágenes, música, stickers, TikTok.
-💾 Descarga – Descarga de redes y YouTube.
-🛠️ Herramientas – Generadores, mezclas, transcripción.
-🤖 IA – Chat con Claude, Gemini, Qwen, generación de imágenes.
-🎨 Canvas – Imágenes de bienvenida y despedida.
-📋 Otros – Ping, clima, dólar, trivia, y más.
+*Comandos principales:*
+/help - Lista completa
+/menu - Menú interactivo
+/ping - Latencia
+/ai [texto] - Pregunta a la IA
+/imagen [descripción] - Genera imagen
+/clima [ciudad] - Clima actual
+/video [búsqueda] - Descarga audio de YouTube
+/qr [texto] - Genera QR
+/dolar - Cotización del dólar
+/wikipedia [término] - Busca en Wikipedia
+/trivia - Pregunta random
+/chiste - Chiste random
 
-*Cada imagen que ves es de Kaori Miyazono.* 🎻
-
-Usa /menu para volver a este menú en cualquier momento.`;
-  await sendSafePhoto(chatId, text, 'Markdown', {
-    reply_markup: { inline_keyboard: getCategoriasKeyboard() }
-  });
-});
-
-// =====================================================
-//  🏠 COMANDO /menu (VUELVE AL MENÚ)
-// =====================================================
-bot.onText(/\/menu/, async (msg) => {
-  const chatId = msg.chat.id;
-  const text =
-`🌸 *Kaori Bot – Menú Principal* 🌸
-
-Selecciona una categoría para ver los comandos:
-
-🔍 Búsqueda – Busca imágenes, música, stickers, TikTok.
-💾 Descarga – Descarga de redes y YouTube.
-🛠️ Herramientas – Generadores, mezclas, transcripción.
-🤖 IA – Chat con Claude, Gemini, Qwen, generación de imágenes.
-🎨 Canvas – Imágenes de bienvenida y despedida.
-📋 Otros – Ping, clima, dólar, trivia, y más.
-
-*Cada imagen que ves es de Kaori Miyazono.* 🎻
-
-Usa /menu para volver a este menú en cualquier momento.`;
-  await sendSafePhoto(chatId, text, 'Markdown', {
-    reply_markup: { inline_keyboard: getCategoriasKeyboard() }
-  });
-});
-
-// =====================================================
-//  🎯 MANEJADOR DE CALLBACKS (BOTONES INLINE)
-// =====================================================
-bot.on('callback_query', async (callbackQuery) => {
-  const chatId = callbackQuery.message.chat.id;
-  const messageId = callbackQuery.message.message_id;
-  const data = callbackQuery.data;
-
-  // Categoría
-  if (data.startsWith('cat_')) {
-    const index = parseInt(data.split('_')[1]);
-    const keys = Object.keys(categorias);
-    const categoria = keys[index];
-    const keyboard = getComandosKeyboard(index);
-    const text = `📂 *${categoria}*\n\nSelecciona un comando:`;
-    await bot.editMessageText(text, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: keyboard }
-    });
-    await bot.answerCallbackQuery(callbackQuery.id);
-    return;
-  }
-
-  // Volver al menú
-  if (data === 'volver') {
-    const text =
-`🌸 *Kaori Bot – Menú Principal* 🌸
-
-Selecciona una categoría para ver los comandos:
-
-🔍 Búsqueda – Busca imágenes, música, stickers, TikTok.
-💾 Descarga – Descarga de redes y YouTube.
-🛠️ Herramientas – Generadores, mezclas, transcripción.
-🤖 IA – Chat con Claude, Gemini, Qwen, generación de imágenes.
-🎨 Canvas – Imágenes de bienvenida y despedida.
-📋 Otros – Ping, clima, dólar, trivia, y más.
-
-*Cada imagen que ves es de Kaori Miyazono.* 🎻
-
-Usa /menu para volver a este menú en cualquier momento.`;
-    await bot.editMessageText(text, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: getCategoriasKeyboard() }
-    });
-    await bot.answerCallbackQuery(callbackQuery.id);
-    return;
-  }
-
-  // Ayuda
-  if (data === 'help') {
-    const helpText = `📋 *Lista de comandos disponibles:*\n\n` +
-      `🔍 *Búsqueda:* /aisearchimg, /pin, /sp, /stickers, /tiktoksearch\n` +
-      `💾 *Descarga:* /applemusic, /facebook, /instagram, /mediafire, /spotifydl, /tiktokdl, /yta, /ytv\n` +
-      `🛠️ *Herramientas:* /brat, /cf, /emojimix, /whatmusic, /transcribe\n` +
-      `🤖 *IA:* /claude, /gemini, /qwen, /zimg\n` +
-      `🎨 *Canvas:* /welcome, /goodbye\n` +
-      `📋 *Otros:* /ping, /test, /dolar, /bitcoin, /wikipedia, /resumen, /trivia, /adivina, /horoscopo, /noticias, /traducir, /chiste, /poema, /recordatorio, /help, /menu\n\n` +
-      `Usa /menu para ver el menú con botones.`;
-    await bot.editMessageText(helpText, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: [[{ text: '⬅️ Volver al menú', callback_data: 'volver' }]] }
-    });
-    await bot.answerCallbackQuery(callbackQuery.id);
-    return;
-  }
-
-  // Comando
-  if (data.startsWith('cmd_')) {
-    const cmdName = data.split('_')[1];
-    // Si el comando no requiere parámetros, lo ejecutamos directamente
-    if (noParams.includes(cmdName)) {
-      // Buscar el comando en el mapa
-      const cmd = commands.get(cmdName);
-      if (cmd) {
-        // Simular un mensaje con el comando
-        const fakeMsg = { chat: { id: chatId }, text: `/${cmdName}` };
-        try {
-          await cmd.execute({ bot, chatId, args: [], m: fakeMsg });
-        } catch (err) {
-          console.error(`Error ejecutando /${cmdName}:`, err);
-          await bot.sendMessage(chatId, `❌ Error al ejecutar /${cmdName}.`);
-        }
-      } else {
-        await bot.sendMessage(chatId, `❌ Comando /${cmdName} no encontrado.`);
-      }
-      await bot.answerCallbackQuery(callbackQuery.id, { text: `Ejecutando /${cmdName}...` });
-    } else {
-      // Si requiere parámetros, enviamos el comando al chat para que el usuario lo complete
-      await bot.sendMessage(chatId, `/${cmdName} `);
-      await bot.answerCallbackQuery(callbackQuery.id, { text: `Escribe lo que necesitas después del comando.` });
-    }
-    // Cerrar el menú o mantenerlo abierto? Mejor no cerrarlo, que el usuario pueda seguir usando.
-    // Pero para evitar confusiones, no editamos el mensaje.
-    return;
-  }
-
-  await bot.answerCallbackQuery(callbackQuery.id);
-});
-
-// =====================================================
-//  COMANDO /help (LISTA DE COMANDOS)
-// =====================================================
-bot.onText(/\/help/, async (msg) => {
-  const chatId = msg.chat.id;
-  const text =
-`📋 *Lista de comandos disponibles:*\n\n` +
-`🔍 *Búsqueda:* /aisearchimg, /pin, /sp, /stickers, /tiktoksearch\n` +
-`💾 *Descarga:* /applemusic, /facebook, /instagram, /mediafire, /spotifydl, /tiktokdl, /yta, /ytv\n` +
-`🛠️ *Herramientas:* /brat, /cf, /emojimix, /whatmusic, /transcribe\n` +
-`🤖 *IA:* /claude, /gemini, /qwen, /zimg\n` +
-`🎨 *Canvas:* /welcome, /goodbye\n` +
-`📋 *Otros:* /ping, /test, /dolar, /bitcoin, /wikipedia, /resumen, /trivia, /adivina, /horoscopo, /noticias, /traducir, /chiste, /poema, /recordatorio, /help, /menu\n\n` +
-`Usa /menu para ver el menú con botones.`;
+*Creado con amor y violín.* 🎻✨`;
   await sendSafePhoto(chatId, text);
 });
 
 // =====================================================
-//  COMANDO /ping
+//  🏠 COMANDO /menu
+// =====================================================
+bot.onText(/\/menu/, async (msg) => {
+  const chatId = msg.chat.id;
+  const text =
+`📂 *Menú de comandos*
+
+🔍 *Búsqueda:* /aisearchimg, /pin, /sp, /stickers, /tiktoksearch
+💾 *Descarga:* /applemusic, /facebook, /instagram, /mediafire, /spotifydl, /tiktokdl, /yta, /ytv
+🛠️ *Herramientas:* /brat, /cf, /emojimix, /whatmusic, /transcribe
+🤖 *IA:* /claude, /gemini, /qwen, /zimg
+🎨 *Canvas:* /welcome, /goodbye
+📋 *Otros:* /ping, /test, /dolar, /bitcoin, /wikipedia, /resumen, /trivia, /adivina, /horoscopo, /noticias, /traducir, /chiste, /poema, /recordatorio, /help
+
+Usa /help para ver todos los comandos con descripciones.`;
+  await sendSafePhoto(chatId, text);
+});
+
+// =====================================================
+//  📋 COMANDO /help (LISTA COMPLETA)
+// =====================================================
+bot.onText(/\/help/, async (msg) => {
+  const chatId = msg.chat.id;
+  const text =
+`📋 *Lista completa de comandos:*
+
+🔍 *Búsqueda*
+/aisearchimg [texto] - Busca imágenes con IA (Lempi)
+/pin [término] - Busca en Pinterest
+/sp [canción] - Busca en Spotify
+/stickers [texto] - Busca stickers
+/tiktoksearch [texto] - Busca en TikTok
+
+💾 *Descarga*
+/applemusic [url] - Descarga de Apple Music
+/facebook [url] - Descarga de Facebook
+/instagram [url] - Descarga de Instagram
+/mediafire [url] - Descarga de MediaFire
+/spotifydl [url] - Descarga de Spotify
+/tiktokdl [url] - Descarga de TikTok sin marca
+/yta [url o búsqueda] - Descarga audio de YouTube
+/ytv [url o búsqueda] - Descarga video de YouTube
+
+🛠️ *Herramientas*
+/brat [texto] - Genera imagen estilo Brat
+/cf - Obtén el flujo actual
+/emojimix [emoji1] [emoji2] - Mezcla dos emojis
+/whatmusic [url o nombre] - Identifica una canción
+/transcribe [url] - Transcribe audio a texto
+
+🤖 *IA*
+/claude [pregunta] - Chat con Claude
+/gemini [pregunta] - Chat con Gemini
+/qwen [pregunta] - Chat con Qwen
+/zimg [descripción] - Genera imagen con IA (Zimg)
+
+🎨 *Canvas*
+/welcome [nombre] [grupo] - Imagen de bienvenida
+/goodbye [nombre] [grupo] - Imagen de despedida
+
+📋 *Otros*
+/start - Inicio
+/menu - Menú de comandos
+/ping - Latencia
+/test - Diagnóstico
+/ai [texto] - Pregunta a la IA (Groq)
+/imagen [descripción] - Genera imagen con IA
+/clima [ciudad] - Clima actual
+/video [búsqueda] - Descarga audio de YouTube
+/music [búsqueda] - Alias de /video
+/qr [texto] - Genera QR
+/leerqr - Lee QR (en desarrollo)
+/dolar - Cotización del dólar
+/bitcoin - Precio de Bitcoin
+/wikipedia [término] - Resumen de Wikipedia
+/resumen [url] - Resume una página web
+/trivia - Pregunta de cultura general
+/adivina [número] - Adivina el número (1-100)
+/horoscopo [signo] - Horóscopo del día
+/noticias - Últimas noticias
+/traducir [texto] - Traduce a español
+/chiste - Chiste aleatorio
+/poema [tema] - Poema generado por IA
+/recordatorio [tiempo] [texto] - Recordatorio
+
+🎻 *Cada interacción incluye una imagen de Kaori.*`;
+  await sendSafePhoto(chatId, text);
+});
+
+// =====================================================
+//  🏓 COMANDO /ping
 // =====================================================
 bot.onText(/\/ping/, async (msg) => {
   const chatId = msg.chat.id;
   const start = Date.now();
   const end = Date.now();
-  const text = `🏓 *Pong!*\n⚡ Latencia: ${end - start}ms`;
-  await sendSafePhoto(chatId, text);
+  await sendSafePhoto(chatId, `🏓 *Pong!*\n⚡ Latencia: ${end - start}ms`);
 });
 
 // =====================================================
-//  COMANDO /test (DIAGNÓSTICO)
+//  🔍 COMANDO /test (DIAGNÓSTICO)
 // =====================================================
 bot.onText(/\/test/, async (msg) => {
   const chatId = msg.chat.id;
@@ -341,13 +207,12 @@ bot.onText(/\/test/, async (msg) => {
   report += `✅ TELEGRAM_TOKEN: ${TELEGRAM_TOKEN ? 'OK' : 'FALTA'}\n`;
   report += `✅ GROQ_API_KEY: ${GROQ_API_KEY ? 'OK' : 'FALTA'}\n`;
   report += `✅ WEATHER_API_KEY: ${WEATHER_API_KEY ? 'OK' : 'FALTA'}\n`;
-  report += `🖼️ Imágenes cargadas: ${misImagenes.length}`;
-  report += `\n📦 Comandos cargados: ${commands.size}`;
+  report += `🖼️ Imágenes cargadas: ${misImagenes.length}\n`;
   await sendSafePhoto(chatId, report);
 });
 
 // =====================================================
-//  COMANDO /ai (GROQ)
+//  🤖 COMANDO /ai (GROQ)
 // =====================================================
 if (groq) {
   bot.onText(/\/ai (.+)/, async (msg, match) => {
@@ -360,20 +225,19 @@ if (groq) {
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 500,
       });
-      const reply = completion.choices[0].message.content;
-      await sendSafePhoto(chatId, `🤖 *Kaori IA:*\n${reply}`);
+      await sendSafePhoto(chatId, `🤖 *Kaori IA:*\n${completion.choices[0].message.content}`);
     } catch (err) {
       await sendSafePhoto(chatId, `❌ *Error en IA:* ${err.message}`);
     }
   });
 } else {
   bot.onText(/\/ai/, async (msg) => {
-    await sendSafePhoto(msg.chat.id, '❌ *GROQ no configurado.* Agrega GROQ_API_KEY en Railway.');
+    await sendSafePhoto(msg.chat.id, '❌ *GROQ no configurado.*');
   });
 }
 
 // =====================================================
-//  COMANDO /imagen (GENERA IMAGEN CON POLLINATIONS)
+//  🎨 COMANDO /imagen (POLLINATIONS)
 // =====================================================
 bot.onText(/\/imagen (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -388,7 +252,7 @@ bot.onText(/\/imagen (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /clima (CON WEATHERAPI)
+//  🌦️ COMANDO /clima
 // =====================================================
 if (WEATHER_API_KEY) {
   bot.onText(/\/clima (.+)/, async (msg, match) => {
@@ -416,7 +280,7 @@ if (WEATHER_API_KEY) {
 }
 
 // =====================================================
-//  COMANDO /video (DESCARGA AUDIO DE YOUTUBE)
+//  🎵 COMANDO /video (DESCARGA AUDIO YOUTUBE)
 // =====================================================
 bot.onText(/\/video (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -436,14 +300,14 @@ bot.onText(/\/video (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /music (ALIAS DE /video)
+//  🎵 COMANDO /music (ALIAS DE /video)
 // =====================================================
 bot.onText(/\/music (.+)/, (msg, match) => {
   bot.emit('text', { ...msg, text: `/video ${match[1]}` });
 });
 
 // =====================================================
-//  COMANDO /qr (GENERA QR)
+//  📲 COMANDO /qr
 // =====================================================
 bot.onText(/\/qr (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -457,14 +321,14 @@ bot.onText(/\/qr (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /leerqr (EN DESARROLLO)
+//  🔧 COMANDO /leerqr (EN DESARROLLO)
 // =====================================================
 bot.onText(/\/leerqr/, async (msg) => {
   await sendSafePhoto(msg.chat.id, '🔧 *Leer QR está en desarrollo.* Pronto estará disponible.');
 });
 
 // =====================================================
-//  COMANDO /dolar (COTIZACIÓN)
+//  💰 COMANDO /dolar
 // =====================================================
 bot.onText(/\/dolar/, async (msg) => {
   const chatId = msg.chat.id;
@@ -484,7 +348,7 @@ bot.onText(/\/dolar/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /bitcoin
+//  ₿ COMANDO /bitcoin
 // =====================================================
 bot.onText(/\/bitcoin/, async (msg) => {
   const chatId = msg.chat.id;
@@ -498,7 +362,7 @@ bot.onText(/\/bitcoin/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /wikipedia
+//  📖 COMANDO /wikipedia
 // =====================================================
 bot.onText(/\/wikipedia (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -519,7 +383,7 @@ bot.onText(/\/wikipedia (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /resumen (RESUME UNA URL)
+//  📄 COMANDO /resumen
 // =====================================================
 bot.onText(/\/resumen (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
@@ -544,7 +408,7 @@ bot.onText(/\/resumen (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  COMANDO /trivia
+//  ❓ COMANDO /trivia
 // =====================================================
 bot.onText(/\/trivia/, async (msg) => {
   const chatId = msg.chat.id;
@@ -563,7 +427,7 @@ bot.onText(/\/trivia/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /adivina
+//  🎯 COMANDO /adivina
 // =====================================================
 const adivinaJuego = new Map();
 bot.onText(/\/adivina (.+)/, async (msg, match) => {
@@ -592,7 +456,7 @@ bot.onText(/\/adivina/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /horoscopo (CON GROQ)
+//  ♈ COMANDO /horoscopo (CON GROQ)
 // =====================================================
 if (groq) {
   bot.onText(/\/horoscopo (.+)/, async (msg, match) => {
@@ -621,7 +485,7 @@ if (groq) {
 }
 
 // =====================================================
-//  COMANDO /noticias
+//  📰 COMANDO /noticias
 // =====================================================
 bot.onText(/\/noticias/, async (msg) => {
   const chatId = msg.chat.id;
@@ -638,7 +502,7 @@ bot.onText(/\/noticias/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /traducir (CON GROQ)
+//  🌐 COMANDO /traducir (CON GROQ)
 // =====================================================
 if (groq) {
   bot.onText(/\/traducir (.+)/, async (msg, match) => {
@@ -663,7 +527,7 @@ if (groq) {
 }
 
 // =====================================================
-//  COMANDO /chiste
+//  😂 COMANDO /chiste
 // =====================================================
 bot.onText(/\/chiste/, async (msg) => {
   const chatId = msg.chat.id;
@@ -677,7 +541,7 @@ bot.onText(/\/chiste/, async (msg) => {
 });
 
 // =====================================================
-//  COMANDO /poema (CON GROQ)
+//  📝 COMANDO /poema (CON GROQ)
 // =====================================================
 if (groq) {
   bot.onText(/\/poema (.+)/, async (msg, match) => {
@@ -702,7 +566,7 @@ if (groq) {
 }
 
 // =====================================================
-//  COMANDO /recordatorio
+//  ⏰ COMANDO /recordatorio
 // =====================================================
 const recordatorios = new Map();
 bot.onText(/\/recordatorio (.+)/, async (msg, match) => {
@@ -732,7 +596,393 @@ bot.onText(/\/recordatorio (.+)/, async (msg, match) => {
 });
 
 // =====================================================
-//  RESPUESTA A MENSAJES SIN COMANDOS
+//  🔍 COMANDOS DE LEMPI (BÚSQUEDA)
+// =====================================================
+
+// /aisearchimg
+bot.onText(/\/aisearchimg (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/s/aisearchimg?q=${encodeURIComponent(query)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.url) await bot.sendPhoto(chatId, data.url, { caption: `🖼️ "${query}"` });
+    else await bot.sendMessage(chatId, '❌ No encontré resultados.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al buscar imágenes.');
+  }
+});
+
+// /pin
+bot.onText(/\/pin (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  const limit = 20;
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/s/pin?q=${encodeURIComponent(query)}&limit=${limit}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.images) await bot.sendPhoto(chatId, data.images[0], { caption: `📌 Resultados de Pinterest para "${query}"` });
+    else await bot.sendMessage(chatId, '❌ No encontré imágenes.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al buscar en Pinterest.');
+  }
+});
+
+// /sp
+bot.onText(/\/sp (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/s/sp?q=${encodeURIComponent(query)}&limit=10&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.tracks) {
+      let msgText = '🎵 *Resultados en Spotify:*\n\n';
+      data.tracks.slice(0, 5).forEach((t, i) => {
+        msgText += `${i+1}. *${t.name}* - ${t.artists[0].name}\n🔗 ${t.external_urls.spotify}\n\n`;
+      });
+      await bot.sendMessage(chatId, msgText);
+    } else await bot.sendMessage(chatId, '❌ No encontré canciones.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al buscar en Spotify.');
+  }
+});
+
+// /stickers
+bot.onText(/\/stickers (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/s/stickers?q=${encodeURIComponent(query)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.stickers) await bot.sendSticker(chatId, data.stickers[0].url);
+    else await bot.sendMessage(chatId, '❌ No encontré stickers.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al buscar stickers.');
+  }
+});
+
+// /tiktoksearch
+bot.onText(/\/tiktoksearch (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/s/tiktok?q=${encodeURIComponent(query)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.videos) await bot.sendVideo(chatId, data.videos[0].url, { caption: `🎵 ${data.videos[0].title}` });
+    else await bot.sendMessage(chatId, '❌ No encontré videos.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al buscar en TikTok.');
+  }
+});
+
+// =====================================================
+//  💾 COMANDOS DE DESCARGA (LEMPI)
+// =====================================================
+
+// /applemusic
+bot.onText(/\/applemusic (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const url = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/dl/applemusic?url=${encodeURIComponent(url)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.download_url) await bot.sendAudio(chatId, data.download_url);
+    else await bot.sendMessage(chatId, '❌ No se pudo descargar la música.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al descargar.');
+  }
+});
+
+// /facebook
+bot.onText(/\/facebook (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const url = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/dl/facebook?url=${encodeURIComponent(url)}&quality=hd&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.download_url) await bot.sendVideo(chatId, data.download_url);
+    else await bot.sendMessage(chatId, '❌ No se pudo descargar el video.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al descargar.');
+  }
+});
+
+// /instagram
+bot.onText(/\/instagram (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const url = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/dl/instagram?url=${encodeURIComponent(url)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.download_url) await bot.sendVideo(chatId, data.download_url);
+    else if (data?.image_url) await bot.sendPhoto(chatId, data.image_url);
+    else await bot.sendMessage(chatId, '❌ No se pudo descargar el contenido.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al descargar.');
+  }
+});
+
+// /mediafire
+bot.onText(/\/mediafire (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const url = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/dl/mediafire?url=${encodeURIComponent(url)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.download_url) await bot.sendDocument(chatId, data.download_url);
+    else await bot.sendMessage(chatId, '❌ No se pudo descargar el archivo.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al descargar.');
+  }
+});
+
+// /spotifydl
+bot.onText(/\/spotifydl (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const url = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/dl/spotify?url=${encodeURIComponent(url)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.download_url) await bot.sendAudio(chatId, data.download_url);
+    else await bot.sendMessage(chatId, '❌ No se pudo descargar la canción.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al descargar.');
+  }
+});
+
+// /tiktokdl
+bot.onText(/\/tiktokdl (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const url = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/dl/tiktok?url=${encodeURIComponent(url)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.download_url) await bot.sendVideo(chatId, data.download_url);
+    else await bot.sendMessage(chatId, '❌ No se pudo descargar el video.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al descargar.');
+  }
+});
+
+// /yta
+bot.onText(/\/yta (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/dl/yta?q=${encodeURIComponent(query)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.download_url) await bot.sendAudio(chatId, data.download_url);
+    else await bot.sendMessage(chatId, '❌ No se pudo descargar el audio.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al descargar.');
+  }
+});
+
+// /ytv
+bot.onText(/\/ytv (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/dl/ytv?q=${encodeURIComponent(query)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.download_url) await bot.sendVideo(chatId, data.download_url);
+    else await bot.sendMessage(chatId, '❌ No se pudo descargar el video.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al descargar.');
+  }
+});
+
+// =====================================================
+//  🛠️ HERRAMIENTAS (LEMPI)
+// =====================================================
+
+// /brat
+bot.onText(/\/brat (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const text = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/tools/brat?text=${encodeURIComponent(text)}&color=verde&format=image&apikey=${LEMPI_API_KEY}`);
+    const buffer = await res.buffer();
+    await bot.sendPhoto(chatId, buffer, { caption: `😈 "${text}"` });
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al generar la imagen Brat.');
+  }
+});
+
+// /cf
+bot.onText(/\/cf/, async (msg) => {
+  const chatId = msg.chat.id;
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/tools/cf?apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.result) await bot.sendMessage(chatId, `🌊 *Current Flow:*\n${data.result}`);
+    else await bot.sendMessage(chatId, '❌ No se pudo obtener el flujo actual.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al obtener datos.');
+  }
+});
+
+// /emojimix
+bot.onText(/\/emojimix (.+) (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const emoji1 = match[1];
+  const emoji2 = match[2];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/tools/emojimix?emoji1=${encodeURIComponent(emoji1)}&emoji2=${encodeURIComponent(emoji2)}&apikey=${LEMPI_API_KEY}`);
+    const buffer = await res.buffer();
+    await bot.sendPhoto(chatId, buffer, { caption: `🔮 ${emoji1} + ${emoji2}` });
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al mezclar emojis.');
+  }
+});
+
+// /whatmusic
+bot.onText(/\/whatmusic (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const query = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/tools/whatmusic?q=${encodeURIComponent(query)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.result) await bot.sendMessage(chatId, `🎵 *Canción identificada:*\n${data.result}`);
+    else await bot.sendMessage(chatId, '❌ No se pudo identificar la canción.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al identificar.');
+  }
+});
+
+// /transcribe
+bot.onText(/\/transcribe (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const url = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/tools/transcribe?url=${encodeURIComponent(url)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.text) await bot.sendMessage(chatId, `📝 *Transcripción:*\n${data.text}`);
+    else await bot.sendMessage(chatId, '❌ No se pudo transcribir.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al transcribir.');
+  }
+});
+
+// =====================================================
+//  🤖 INTELIGENCIA ARTIFICIAL (LEMPI)
+// =====================================================
+
+// /claude
+bot.onText(/\/claude (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const prompt = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/ai/claude?q=${encodeURIComponent(prompt)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.result) await bot.sendMessage(chatId, `🤖 *Claude:*\n${data.result}`);
+    else await bot.sendMessage(chatId, '❌ No pude obtener respuesta de Claude.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al consultar Claude.');
+  }
+});
+
+// /gemini
+bot.onText(/\/gemini (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const prompt = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/ai/gemini?q=${encodeURIComponent(prompt)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.result) await bot.sendMessage(chatId, `🧠 *Gemini:*\n${data.result}`);
+    else await bot.sendMessage(chatId, '❌ No pude obtener respuesta de Gemini.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al consultar Gemini.');
+  }
+});
+
+// /qwen
+bot.onText(/\/qwen (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const prompt = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/ai/qwen?q=${encodeURIComponent(prompt)}&apikey=${LEMPI_API_KEY}`);
+    const data = await res.json();
+    if (data?.result) await bot.sendMessage(chatId, `📡 *Qwen:*\n${data.result}`);
+    else await bot.sendMessage(chatId, '❌ No pude obtener respuesta de Qwen.');
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al consultar Qwen.');
+  }
+});
+
+// /zimg
+bot.onText(/\/zimg (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const prompt = match[1];
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const res = await fetch(`https://api.lempi.lat/ai/zimg?size=1024x1024&q=${encodeURIComponent(prompt)}&apikey=${LEMPI_API_KEY}`);
+    const buffer = await res.buffer();
+    await bot.sendPhoto(chatId, buffer, { caption: `🖼️ "${prompt}"` });
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al generar imagen.');
+  }
+});
+
+// =====================================================
+//  🎨 CANVAS (LEMPI)
+// =====================================================
+
+// /welcome
+bot.onText(/\/welcome (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const params = match[1].split(' ');
+  const username = params[0] || 'Usuario';
+  const guildName = params.slice(1).join(' ') || 'Club de Anime';
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const url = `https://api.lempi.lat/api/canvas/welcomev1?username=${encodeURIComponent(username)}&guildName=${encodeURIComponent(guildName)}&guildIcon=https%3A%2F%2Fapi.lempi.lat%2FUka.jpg&memberCount=150&avatar=https%3A%2F%2Fapi.lempi.lat%2FBiy.jpg&background=https%3A%2F%2Fapi.lempi.lat%2FRlK.jpg&quality=80&apikey=${LEMPI_API_KEY}`;
+    const buffer = await fetch(url).then(r => r.buffer());
+    await bot.sendPhoto(chatId, buffer, { caption: `🎉 Bienvenido ${username} a ${guildName}!` });
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al generar la imagen de bienvenida.');
+  }
+});
+
+// /goodbye
+bot.onText(/\/goodbye (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const params = match[1].split(' ');
+  const username = params[0] || 'Usuario';
+  const guildName = params.slice(1).join(' ') || 'Club de Anime';
+  await bot.sendChatAction(chatId, 'typing');
+  try {
+    const url = `https://api.lempi.lat/api/canvas/goodbyev1?username=${encodeURIComponent(username)}&guildName=${encodeURIComponent(guildName)}&guildIcon=https%3A%2F%2Fapi.lempi.lat%2FUka.jpg&memberCount=150&avatar=https%3A%2F%2Fapi.lempi.lat%2FBiy.jpg&background=https%3A%2F%2Fapi.lempi.lat%2FRlK.jpg&quality=80&apikey=${LEMPI_API_KEY}`;
+    const buffer = await fetch(url).then(r => r.buffer());
+    await bot.sendPhoto(chatId, buffer, { caption: `👋 ¡Hasta luego ${username}!` });
+  } catch {
+    await bot.sendMessage(chatId, '❌ Error al generar la imagen de despedida.');
+  }
+});
+
+// =====================================================
+//  💬 RESPUESTA A MENSAJES SIN COMANDOS
 // =====================================================
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
@@ -753,12 +1003,11 @@ bot.on('message', async (msg) => {
 });
 
 // =====================================================
-//  MANEJO DE ERRORES DE POLLING
+//  ⚠️ MANEJO DE ERRORES
 // =====================================================
 bot.on('polling_error', (error) => {
   console.warn(`⚠️ Error de polling: ${error.code} - ${error.message}`);
 });
 
-console.log('🌸 Bot de Kaori Miyazono corriendo con menú de botones...');
+console.log('🌸 Kaori Bot corriendo con TODOS los comandos integrados...');
 console.log(`🖼️ ${misImagenes.length} imágenes cargadas desde 'assets'`);
-console.log(`📦 ${commands.size} comandos disponibles`);
